@@ -1,0 +1,3 @@
+# postinstall download artifact (created by install.js)
+bin/xls
+bin/xls.exe

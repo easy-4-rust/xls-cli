@@ -1,0 +1,17 @@
+{
+  "name": "xls-cli",
+  "version": "0.1.0",
+  "description": "Excel CLI for agents — read/write/analyze XLSX, XLS and CSV with 41 subcommands (info/get/eval/query/pivot/diff/export...). Powered by the xls Rust fork.",
+  "license": "MIT OR Apache-2.0",
+  "keywords": ["excel", "xlsx", "xls", "csv", "spreadsheet", "agent", "cli", "llm", "formula"],
+  "bin": { "xls": "bin/xls.js" },
+  "files": ["bin", "install.js", "skills", "README.md"],
+  "scripts": {
+    "install": "node install.js"
+  },
+  "engines": { "node": ">=16" },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/easy-4-rust/xls-cli"
+  }
+}
