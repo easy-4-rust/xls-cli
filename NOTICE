@@ -1,0 +1,14 @@
+xls-cli
+Copyright 2026 easy-4-rust contributors
+
+This product depends on EasyExcel-Rust foundation crates and includes command
+and formula implementations migrated from the easy-4-rust/xls fork. Source
+provenance and capability status are documented in the EasyExcel-Rust
+capability matrix. Third-party dependency license texts remain governed by
+their respective packages.
+
+The CLI and TUI implementation under src/cli and src/tui is derived from the
+`xls` project by Soham Zemse and contributors, obtained from the
+easy-4-rust/xls fork. The migrated source is licensed under MIT OR Apache-2.0;
+path-level provenance and integration changes are recorded in
+docs/xls-source-migration.md.

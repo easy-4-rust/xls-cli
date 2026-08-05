@@ -1,0 +1,11 @@
+{
+  "name": "@easy4rust/xls-cli-linux-x64-gnu",
+  "version": "0.1.0",
+  "description": "Native xls-cli binary for Linux x64 glibc",
+  "license": "MIT OR Apache-2.0",
+  "os": ["linux"],
+  "cpu": ["x64"],
+  "libc": ["glibc"],
+  "files": ["bin/xls", "README.md"],
+  "publishConfig": { "access": "public" }
+}

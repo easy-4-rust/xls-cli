@@ -1,0 +1,10 @@
+{
+  "name": "@easy4rust/xls-cli-darwin-x64",
+  "version": "0.1.0",
+  "description": "Native xls-cli binary for macOS x64",
+  "license": "MIT OR Apache-2.0",
+  "os": ["darwin"],
+  "cpu": ["x64"],
+  "files": ["bin/xls", "README.md"],
+  "publishConfig": { "access": "public" }
+}

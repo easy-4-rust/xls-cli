@@ -1,107 +1,244 @@
 # xls-cli
 
-**Excel CLI for agents** — 读写 **XLSX / XLS(BIFF8)/ CSV** 的单二进制工具,
-内置 500+ 个 Excel 工作表函数的公式引擎(实测注册表 503 个,含动态数组 spill
-与 LAMBDA)。为 LLM 智能体(Claude/OpenClaw/Hermes 等)和脚本场景设计:只读
-命令输出 `table|csv|tsv|json|jsonl|md`,修改命令支持 `--dry-run / --backup /
---output`。
+`xls-cli` is a safe spreadsheet CLI and terminal UI for scripts, agents, and people. The Cargo package is `xls-cli`; the executable is always `xls`.
 
-底层是 Rust 的 [`xls`](https://github.com/easy-4-rust/xls)(`xls-rs` 的增强
-fork),无 Node 原生依赖,无 Python 运行时。
+It provides a library-first JSON command protocol, a fuller human-terminal command surface, an interactive TUI, npm distribution for native binaries, and an agent Skill. Production code depends on EasyExcel-Rust components; it has no production dependency on the older `xls` fork.
 
-## 安装
+> Status: the workspace currently contains development changes. Treat `xls capabilities --json` from the binary you run as the authority for supported commands.
 
-```sh
-npm i -g xls-cli
+```text
+Agent Skill ─┐
+             ├──> xls binary ──> structured CLI ──> EasyExcel components
+Shell user ──┤          │
+npm launcher ┘          └──> interactive TUI ────> EasyExcel components
 ```
 
-安装脚本按 `platform × arch` 自动下载对应 GitHub Release 二进制:
+中文说明请见 [README.zh-CN.md](README.zh-CN.md)。设计与实施依据见 [architecture](docs/XlsCli-Architecture.zh_CN.md) 和 [technical solution](docs/XlsCli-Technical-Solution.zh_CN.md)。
 
-| 平台 | x64 | arm64 |
-| --- | --- | --- |
-| macOS | x86_64-apple-darwin | aarch64-apple-darwin |
-| Linux | x86_64-unknown-linux-gnu | aarch64-unknown-linux-gnu |
-| Windows | x86_64-pc-windows-msvc | aarch64-pc-windows-msvc |
+## Use cases
 
-不依赖网络时(内网/离线),可手动放置二进制到 `bin/xls` 后执行
-`npm rebuild xls-cli`。
-
-## 快速上手
-
-```sh
-xls --help                          # 41 个子命令总览
-xls info report.xlsx                # 元数据
-xls get report.xlsx 'A1:J200' --header --format csv
-xls query report.xlsx "SELECT * FROM Sheet1 WHERE amount > 1000 ORDER BY amount DESC LIMIT 50"
-xls pivot report.xlsx --rows category --values amount --agg sum
-xls set report.xlsx A1 '=SUM(B:B)'  # 写入公式并重算
-xls diff before.xlsx after.xlsx --key id
-xls export old.xls --format xlsx -o new.xlsx
+```mermaid
+flowchart LR
+    Agent["Agent or automation"] --> Inspect["Inspect and extract\ninfo / get / query"]
+    Analyst["Analyst"] --> Transform["Create or transform\nimport / convert / export"]
+    Operator["Operator"] --> Edit["Safely edit\ndry-run → new output → verify"]
+    User["Spreadsheet user"] --> Tui["Interactive workbook\nopen / FILE.xlsx"]
+    Inspect --> Xls["xls-cli"]
+    Transform --> Xls
+    Edit --> Xls
+    Tui --> Xls
+    Xls --> Files["Local XLS / XLSX / CSV\nand table documents"]
 ```
 
-## 与智能体集成
+| Reader | Recommended entry | Expected outcome | Boundary |
+|:---|:---|:---|:---|
+| Agent or script | `capabilities --json` → `info` → supported command | A single versioned JSON result | Do not call a `partial` command as a JSON API. |
+| Data analyst | `info`, `get`, `head`, `tail`, `query` | Metadata or extracted tabular data | `query` is read-only. |
+| File producer | `import`, `new`, `convert`, `export` | A new output file in a requested format | Run dry-run before any write. |
+| Spreadsheet user | `xls open FILE.xlsx` or `xls FILE.xlsx` | Interactive TUI session | Saving replaces the file only after an explicit user action. |
 
-### OpenClaw / Claude Code / Hermes(Agent Skills)
+## Command guide and support boundary
 
-仓库的 `skills/xls/SKILL.md` 是通用 Agent Skill:frontmatter(`name`/`description`)
-+ 命令文档。安装到任意 agent 的 skills 目录:
+The binary's `xls capabilities --json` result is the source of truth. The following matrix is a reader guide to the current implementation.
 
-```sh
-mkdir -p ~/.claude/skills && cp -r skills/xls ~/.claude/skills/
-# OpenClaw:
-mkdir -p ~/.openclaw/skills && cp -r skills/xls ~/.openclaw/skills/
-```
+| Goal | Commands | JSON capability | Example |
+|:---|:---|:---|:---|
+| Discover a workbook | `info`, `get`, `head`, `tail` | `supported` | `xls get report.xlsx 'Sheet1!A1:J20' --json` |
+| Query data | `query` | `supported`, read-only | `xls query report.xlsx 'SELECT * FROM Sheet1 LIMIT 20' --json` |
+| Change cells and axes | `set`, `clear`, `fill`, `insert-row`, `delete-row`, `insert-col`, `delete-col` | `supported` | `xls fill in.xlsx 'Sheet1!B2:B10' 0 --output out.xlsx --json` |
+| Manage sheets | `new`, `add-sheet`, `delete-sheet`, `rename-sheet`, `recalc` | `supported` | `xls recalc in.xlsx --output out.xlsx --json` |
+| Exchange formats | `convert`, `import`, `export` | `supported` | `xls import tables.md report.xlsx --dry-run --json` |
+| Inspect protocol | `capabilities`, `schema --command NAME` | `supported` | `xls schema --command get --json` |
+| Work interactively | `open` or a workbook path | `partial` | `xls open report.xlsx` |
+| Advanced terminal operations | `grep`, `profile`, `copy`, `move`, `append`, `filter`, `sort`, `dedup`, `join`, `pivot`, `diff`, `format`, `format-set`, `to-number`, `to-date`, `style`, `autofit`, `batch`, `name`, `table`, `eval` | `partial` | `xls pivot report.xlsx --help` |
 
-agent 即可按 skill 约定调用 `xls info → xls get/query → xls eval` 的
-"探测 → 取数 → 验证" 流程操作电子表格。
+`partial` means that a migrated human-terminal implementation exists, not that a structured result contract exists. `--json` intentionally returns `UNSUPPORTED_COMMAND` for those commands. Agent integrations must not parse human-oriented terminal output as an API substitute.
 
-### 脚本
+## Install and verify
 
-```sh
-# 管道:stdin CSV → 公式求值
-cat data.csv | xls eval - '=SUM(B2:B100)'
-
-# JSON 输出直接喂给 jq
-xls get report.xlsx 'A1:J200' --format json | jq '.[0]'
-
-# 修改前先看差异
-xls set report.xlsx A1 42 --dry-run
-xls set report.xlsx A1 42 --backup    # 落盘前保留 .bak
-```
-
-## 命令一览(41)
-
-| 类别 | 命令 |
-| --- | --- |
-| 元数据 | `info` |
-| 读取 | `get`, `format`, `head`, `tail`, `grep` |
-| 分析 | `eval`, `profile`, `filter`, `pivot`, `join`, `diff`, `query` |
-| 写入 | `new`, `set`, `batch`, `append`, `clear`, `fill`, `copy`, `move`, `insert-row`, `delete-row`, `insert-col`, `delete-col` |
-| 转换 | `export`, `import`, `to-number`, `to-date`, `format-set` |
-| 结构 | `add-sheet`, `delete-sheet`, `rename-sheet`, `autofit`, `style`, `name`, `table` |
-| 整理 | `sort`, `dedup` |
-
-全部命令的旗标与示例见 `skills/xls/SKILL.md`。
-
-## 边界
-
-- **格式**:XLSX/XLS 读+写,CSV/TSV 读+写(BOM/编码自动检测);XLS 公式以
-  缓存值存储。
-- **加密**:支持解密读取 agile/standard 加密的 XLSX(`xls get -p`);不支持
-  legacy RC4 的 .xls 解密、不支持重新加密。
-- **不支持**:图表/宏/VBA 编辑;XLSX 部分稀有特性(如内容类型非常规的
-  工作簿)走 typed 错误而非静默降级。
-
-## 开发
+Published npm consumers install the launcher package. Its optional dependency selects the native package for the current supported platform; install neither downloads arbitrary URLs nor compiles code.
 
 ```sh
-# 构建 CLI 二进制(fork 仓库内)
-cargo build --features cli --release
-
-# 本地打包模拟 npm 安装
-node install.js && node bin/xls.js --version
+npm install -g @easy4rust/xls-cli
+xls --version
+xls capabilities --json
 ```
 
-## License
+Native npm packages are defined for macOS, Linux GNU, Linux musl, and Windows on `x64` and `arm64`. Unsupported platform/architecture pairs fail with an explicit launcher error.
 
-MIT OR Apache-2.0(与上游 `xls-rs` 一致)。
+For source development, place this repository beside the required `easyexcel-rust` checkout because the Cargo manifest uses relative path dependencies:
+
+```text
+parent/
+├── xls-cli/
+└── easyexcel-rust/
+```
+
+Then build and inspect the local binary:
+
+```sh
+cargo build
+./target/debug/xls capabilities --json
+XLS_CLI_BINARY="$PWD/target/debug/xls" node bin/xls.js --version
+```
+
+The crate declares Rust edition 2024 and MSRV `1.94` in `Cargo.toml`.
+
+## Quick start
+
+Inspect a workbook before extracting data:
+
+```sh
+xls info report.xlsx --json
+xls get report.xlsx 'Sheet1!A1:J200' --format json --json
+xls query report.xlsx 'SELECT category, SUM(amount) AS total FROM Sheet1 GROUP BY category' --json
+```
+
+Create a workbook from a Markdown table without replacing an existing file:
+
+```sh
+xls import tables.md generated.xlsx --dry-run --json
+xls import tables.md generated.xlsx --json
+xls info generated.xlsx --json
+xls get generated.xlsx 'Table1!A1:F20' --json
+```
+
+Open a workbook in the interactive TUI:
+
+```sh
+xls open report.xlsx
+# or
+xls report.xlsx
+```
+
+The TUI supports selection, editing, undo/redo, clipboard operations, find/go-to, sheet switching, frozen panes, mouse interaction, column resizing, a command palette, and terminal restoration on normal exit or panic. TUI saving is an explicit user action and replaces its associated file path.
+
+## Command execution flow
+
+```mermaid
+sequenceDiagram
+    participant C as Caller
+    participant R as cli::runner
+    participant E as Executor or terminal route
+    participant W as Workbook I/O
+    participant F as Local file
+
+    C->>R: xls COMMAND ... --json
+    R->>R: Parse arguments and safety context
+    alt supported structured command
+        R->>E: Typed CommandRequest
+        E->>W: Validate limits and output policy
+        W->>F: Read / write atomically
+        E-->>R: CommandResult or CommandError
+        R-->>C: One JSON document on stdout
+    else partial command with --json
+        R-->>C: UNSUPPORTED_COMMAND JSON error
+    else human terminal or TUI route
+        R->>E: Guarded terminal / TUI invocation
+        E-->>C: Human output or interactive session
+    end
+```
+
+For every machine-driven write, use the following observable workflow:
+
+| Step | Command shape | What to check before continuing |
+|:---:|:---|:---|
+| 1 | `xls capabilities --json` | The requested command is `supported`. |
+| 2 | `xls info INPUT --json` | Input exists; sheet/range names are known. |
+| 3 | `COMMAND ... --output OUTPUT --dry-run --json` | `files[].written` is `false`; warnings and paths are acceptable. |
+| 4 | Same command without `--dry-run` | Output was reported as written. |
+| 5 | `xls info OUTPUT --json` and focused `xls get` | Output reopens and the intended cells/data are present. |
+
+## Migrated source coverage
+
+The former standalone migration matrix is maintained here so the README remains self-contained. The migration moved CLI/TUI behavior from the Easy4Rust `xls` fork while replacing its core type paths with EasyExcel-Rust components. `xls-cli` has no production dependency on that old fork.
+
+| Original area | Current location | Preserved responsibility | Integration adjustment |
+|:---|:---|:---|:---|
+| Binary and library entry | `src/main.rs`, `src/lib.rs`, `src/cli/runner.rs` | Thin entry, public CLI/TUI product boundary, exit handling | Runner owns JSON/stdout/stderr and routing. |
+| Full terminal command surface | `src/cli/terminal.rs` | `clap` commands, edits, querying, formatting, names, tables | New guardrails run before the migrated route. |
+| Structured command protocol | `src/cli/command_*.rs`, `default_command_executor.rs`, `schema.rs` | Typed request, result, errors, capability manifest | New library-first API; only `supported` commands promise it. |
+| Rendering and streaming | `src/cli/render.rs`, `src/cli/stream.rs` | Table, CSV, TSV, JSON, JSONL, Markdown and HTML presentation | Component paths use EasyExcel; streaming covers XLSX/CSV row sinks. |
+| Compatibility adapter | `src/cli/easyexcel_components.rs` | Narrow mapping from old core concepts | It does not duplicate workbook, formula, or format engines. |
+| TUI runtime | `src/tui/runtime.rs`, `src/tui/mod.rs` | Event loop, key/mouse routing, terminal recovery, command palette | RAII guard and panic hook restore terminal state. |
+| TUI application | `src/tui/app.rs`, `editor.rs`, `layout.rs`, `parse.rs`, `theme.rs`, `ui.rs` | Selection, editing, undo/redo, clipboard, find, layout, rendering | Uses `easyexcel::model::Workbook` and formula engine components. |
+| TUI I/O | `src/tui/workbook_io.rs` | Open and save a session | Reuses CLI limits and atomic write; Ctrl+S is explicit replacement. |
+
+### TUI interaction contract
+
+```mermaid
+stateDiagram-v2
+    [*] --> Normal
+    Normal --> Edit: type / F2 / double-click
+    Edit --> Normal: Enter or Tab commits
+    Edit --> Normal: Esc cancels
+    Normal --> Dialog: command, find, go-to, save-as
+    Dialog --> Normal: Enter or Esc
+    Normal --> ConfirmQuit: quit with unsaved changes
+    ConfirmQuit --> [*]: confirm
+    ConfirmQuit --> Normal: cancel
+```
+
+| Behavior | Current contract |
+|:---|:---|
+| Editing | Cursor, range selection, formulas, clipboard, undo/redo, find/go-to, sheet tabs, scrollbars, frozen panes, and column resizing are part of the migrated TUI surface. |
+| Saving | The interactive user explicitly triggers save; the associated path is then replaced through the unified workbook I/O policy. |
+| Terminal recovery | Normal exit and panic handling restore raw mode, alternate screen, and mouse capture. |
+| Formula state | The TUI recalculates workbook formula caches on open through `easyexcel_formula::Engine`. |
+
+## Safe writing and secrets
+
+Structured write commands deny replacement by default. Use a new output path, dry-run first, then reopen the result:
+
+```sh
+xls set source.xlsx 'Summary!B2' 42 --output revised.xlsx --dry-run --json
+xls set source.xlsx 'Summary!B2' 42 --output revised.xlsx --json
+xls info revised.xlsx --json
+xls get revised.xlsx 'Summary!B2' --json
+```
+
+Use `--force` only when replacement of that exact target is intended. Passwords must never be supplied as command arguments:
+
+```sh
+printf '%s\n' "$WORKBOOK_PASSWORD" | xls info protected.xlsx --password-stdin --json
+xls info protected.xlsx --password-env WORKBOOK_PASSWORD --json
+```
+
+The structured CLI sets these defaults for untrusted inputs: 256 MiB per file, 256 sheets, 2,000,000 total rows, and 500,000 formula cells. Lower them with the corresponding `--max-*` options when appropriate. Migrated terminal-only commands currently reject the resource-limit switches rather than silently ignoring them.
+
+In JSON mode, stdout contains exactly one result or error object. Successful results include `schema_version`, `command`, `data`, `files`, `warnings`, `stats`, and `dry_run`; errors carry a stable code such as `OVERWRITE_DENIED`, `RESOURCE_LIMIT`, or `UNSUPPORTED_COMMAND`.
+
+## Agent Skill
+
+The source Skill is [skills/xls-cli/SKILL.md](skills/xls-cli/SKILL.md). `scripts/sync-skills.js` copies it to the OpenClaw and Hermes distribution paths.
+
+Its required write sequence is:
+
+```text
+capabilities → info → dry-run → write a new file → info + focused get verification
+```
+
+This makes the capability manifest, not a stale README, the runtime truth.
+
+## Development and release
+
+The CI workflow performs formatting, Clippy, tests, JavaScript syntax checks, and `npm pack --dry-run`. Run the equivalent checks locally:
+
+```sh
+cargo fmt --check
+cargo clippy --all-targets
+cargo test --all-targets
+node --check bin/xls.js
+node --check bin/platform.js
+npm pack --dry-run --ignore-scripts
+```
+
+Tagging `vX.Y.Z` triggers the release workflow. It builds eight native target packages, verifies all npm package versions, publishes platform packages before the launcher, and attaches native binaries plus SHA-256 checksums to the GitHub release.
+
+## Provenance and license
+
+The CLI/TUI source was migrated from the Easy4Rust `xls` fork and adapted to EasyExcel-Rust components; its migration coverage is documented in the **Migrated source coverage** section above. License terms are [MIT](LICENSE-MIT) or [Apache-2.0](LICENSE-APACHE); see [NOTICE](NOTICE) for provenance and third-party notices.
+
+### Historical migration verification snapshot
+
+The migration handoff recorded on 2026-08-05 reported formatting, Clippy, 106 Rust tests, CLI/TUI smoke checks, and eight npm package version checks as passing at that time. This is historical migration evidence, not a claim about the state of a different local dependency checkout. Run the commands in **Development and release** for current verification.

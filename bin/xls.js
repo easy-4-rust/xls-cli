@@ -1,27 +1,22 @@
 #!/usr/bin/env node
-// xls-cli launcher: spawns the platform binary downloaded by install.js
-// (`bin/xls` / `bin/xls.exe`) with the user's arguments and inherits stdio.
 'use strict';
 
 const { spawnSync } = require('child_process');
-const { join } = require('path');
 const { existsSync } = require('fs');
+const { resolveBinary, packageName } = require('./platform');
 
-const exe = process.platform === 'win32' ? '.exe' : '';
-const binary = join(__dirname, `xls${exe}`);
-
-if (!existsSync(binary)) {
+const binary = resolveBinary();
+if (!binary || !existsSync(binary)) {
   console.error(
-    'xls-cli: binary not found — the postinstall download may have failed.\n' +
-      'Run `npm rebuild xls-cli` to retry, or place the binary manually at ' +
-      binary
+    `xls-cli: native binary not found for ${packageName()}. ` +
+      'Reinstall with optionalDependencies enabled or build this source checkout with Cargo.'
   );
   process.exit(1);
 }
 
 const result = spawnSync(binary, process.argv.slice(2), { stdio: 'inherit' });
 if (result.error) {
-  console.error(`xls-cli: failed to run ${binary}: ${result.error.message}`);
+  console.error(`xls-cli: failed to run native binary: ${result.error.message}`);
   process.exit(1);
 }
 process.exit(result.status === null ? 1 : result.status);

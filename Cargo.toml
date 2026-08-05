@@ -1,0 +1,56 @@
+[package]
+name = "xls-cli"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.94"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/easy-4-rust/xls-cli"
+homepage = "https://github.com/easy-4-rust/xls-cli"
+description = "Agent-safe command line interface for XLS, XLSX, CSV, Markdown, HTML and JSON tables"
+keywords = ["excel", "xlsx", "xls", "spreadsheet", "cli"]
+categories = ["command-line-utilities"]
+include = ["src/**/*.rs", "Cargo.toml", "README.md", "LICENSE-*", "NOTICE"]
+
+[features]
+default = ["tui"]
+tui = []
+
+[[bin]]
+name = "xls"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+easyexcel = { path = "../easyexcel-rust/easyexcel", version = "0.1.0-alpha.1" }
+easyexcel-model = { path = "../easyexcel-rust/crates/easyexcel-model", version = "0.1.0-alpha.1" }
+easyexcel-formula = { path = "../easyexcel-rust/crates/easyexcel-formula", version = "0.1.0-alpha.1" }
+easyexcel-tabular = { path = "../easyexcel-rust/crates/easyexcel-tabular", version = "0.1.0-alpha.1" }
+easyexcel-xls = { path = "../easyexcel-rust/crates/easyexcel-xls", version = "0.1.0-alpha.1" }
+easyexcel-xlsx = { path = "../easyexcel-rust/crates/easyexcel-xlsx", version = "0.1.0-alpha.1" }
+regex = { version = "1", default-features = false, features = ["std", "unicode"] }
+ratatui = "0.29"
+crossterm = "0.28"
+tui-textarea = "0.7"
+arboard = "3"
+unicode-width = "0.2"
+csv = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tempfile = "3"
+thiserror = "2"
+
+[dev-dependencies]
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = "symbols"
+
+[lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+
+[lints.clippy]
+all = "warn"
+pedantic = "warn"

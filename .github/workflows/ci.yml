@@ -1,0 +1,41 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout xls-cli
+        uses: actions/checkout@v4
+        with:
+          path: xls-cli
+      - name: Checkout EasyExcel-Rust foundations
+        uses: actions/checkout@v4
+        with:
+          repository: easy-4-rust/easyexcel-rust
+          path: easyexcel-rust
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - name: Format
+        working-directory: xls-cli
+        run: cargo fmt --check
+      - name: Clippy
+        working-directory: xls-cli
+        run: cargo clippy --all-targets
+      - name: Test
+        working-directory: xls-cli
+        run: cargo test
+      - name: Validate npm JavaScript
+        working-directory: xls-cli
+        run: |
+          node --check bin/xls.js
+          node --check bin/platform.js
+          node --check install.js
+          node --check scripts/sync-skills.js
+      - name: Check npm package
+        working-directory: xls-cli
+        run: npm pack --dry-run --ignore-scripts

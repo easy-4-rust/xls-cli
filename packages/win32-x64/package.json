@@ -1,0 +1,10 @@
+{
+  "name": "@easy4rust/xls-cli-win32-x64",
+  "version": "0.1.0",
+  "description": "Native xls-cli binary for Windows x64",
+  "license": "MIT OR Apache-2.0",
+  "os": ["win32"],
+  "cpu": ["x64"],
+  "files": ["bin/xls.exe", "README.md"],
+  "publishConfig": { "access": "public" }
+}

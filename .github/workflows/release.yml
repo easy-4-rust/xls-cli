@@ -1,0 +1,143 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-13
+            target: x86_64-apple-darwin
+            package: darwin-x64
+            builder: cargo
+            executable: xls
+          - runner: macos-14
+            target: aarch64-apple-darwin
+            package: darwin-arm64
+            builder: cargo
+            executable: xls
+          - runner: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            package: linux-x64-gnu
+            builder: cargo
+            executable: xls
+          - runner: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            package: linux-arm64-gnu
+            builder: cross
+            executable: xls
+          - runner: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            package: linux-x64-musl
+            builder: cross
+            executable: xls
+          - runner: ubuntu-latest
+            target: aarch64-unknown-linux-musl
+            package: linux-arm64-musl
+            builder: cross
+            executable: xls
+          - runner: windows-latest
+            target: x86_64-pc-windows-msvc
+            package: win32-x64
+            builder: cargo
+            executable: xls.exe
+          - runner: windows-11-arm
+            target: aarch64-pc-windows-msvc
+            package: win32-arm64
+            builder: cargo
+            executable: xls.exe
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Checkout xls-cli
+        uses: actions/checkout@v4
+        with:
+          path: xls-cli
+      - name: Checkout EasyExcel-Rust foundations
+        uses: actions/checkout@v4
+        with:
+          repository: easy-4-rust/easyexcel-rust
+          path: easyexcel-rust
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - name: Install cross
+        if: matrix.builder == 'cross'
+        uses: taiki-e/install-action@cross
+      - name: Build with Cargo
+        if: matrix.builder == 'cargo'
+        working-directory: xls-cli
+        run: cargo build --release --locked --target ${{ matrix.target }}
+      - name: Build with cross
+        if: matrix.builder == 'cross'
+        working-directory: xls-cli
+        run: cross build --release --locked --target ${{ matrix.target }}
+      - name: Stage native package
+        shell: bash
+        run: |
+          mkdir -p "xls-cli/packages/${{ matrix.package }}/bin"
+          cp "xls-cli/target/${{ matrix.target }}/release/${{ matrix.executable }}" \
+             "xls-cli/packages/${{ matrix.package }}/bin/${{ matrix.executable }}"
+          cp xls-cli/LICENSE-APACHE xls-cli/LICENSE-MIT xls-cli/NOTICE \
+             "xls-cli/packages/${{ matrix.package }}/"
+      - name: Upload native package
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-${{ matrix.package }}
+          path: xls-cli/packages/${{ matrix.package }}
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+      - uses: actions/download-artifact@v4
+        with:
+          path: native
+      - name: Verify versions and stage packages
+        run: |
+          node scripts/check-versions.js "${GITHUB_REF_NAME#v}"
+          for package_dir in packages/*; do
+            package_name="$(basename "$package_dir")"
+            cp -R "native/native-${package_name}/." "$package_dir/"
+          done
+      - name: Publish native packages
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          for package_dir in packages/*; do npm publish "$package_dir" --access public; done
+      - name: Publish npm launcher
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --access public
+      - name: Build checksums and GitHub release assets
+        run: |
+          mkdir release-assets
+          version="${GITHUB_REF_NAME#v}"
+          for package_dir in packages/*; do
+            package_name="$(basename "$package_dir")"
+            if [ -f "$package_dir/bin/xls.exe" ]; then
+              cp "$package_dir/bin/xls.exe" "release-assets/xls-${version}-${package_name}.exe"
+            else
+              cp "$package_dir/bin/xls" "release-assets/xls-${version}-${package_name}"
+            fi
+          done
+          cd release-assets
+          sha256sum xls-* > SHA256SUMS
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" release-assets/* --verify-tag --generate-notes
