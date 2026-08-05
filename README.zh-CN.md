@@ -15,6 +15,19 @@ npm 启动器 ──┘        └──> 交互式 TUI ───────> E
 
 English documentation: [README.md](README.md)。设计与实施依据见[架构文档](docs/XlsCli-Architecture.zh_CN.md)和[技术方案](docs/XlsCli-Technical-Solution.zh_CN.md)。
 
+## 为什么选择 xls-cli
+
+| 需求 | xls-cli 提供的能力 | 责任边界 |
+|:---|:---|:---|
+| 新旧电子表格 | 读取和写入 XLS（BIFF8）、XLSX（OOXML）和 CSV | 格式语义由 EasyExcel-Rust 基础 crate 负责。 |
+| 真实公式 | 词法/语法解析、依赖重算、循环引用检测、动态数组和 `LAMBDA` 系列函数 | `easyexcel-formula` 负责求值；`xls-cli` 暴露 `recalc` 和迁移终端 `eval`。 |
+| 往返编辑 | 单元格、样式、数字格式、合并、冻结窗格、名称和表格 | 保真度取决于格式，生成后必须重新打开验证。 |
+| 智能体安全自动化 | 版本化 JSON、能力探测、稳定错误、dry-run、资源限制和显式覆盖 | 结构化协议归 `src/cli` 所有；`partial` 终端命令不属于该契约。 |
+| 人类电子表格操作 | 同一原生二进制中的鼠标感知、Vim 风格 TUI | TUI 状态只存在于当前进程和文件会话。 |
+| 可移植分发 | 一个 Rust 可执行文件、Cargo 源码构建和 8 个 npm 原生平台包 | npm 仅选择并启动已安装二进制，不重复实现电子表格逻辑。 |
+
+旧 `xls` 将自身定义为“终端中的电子表格”。`xls-cli` 完整保留该终端体验，并增加面向脚本和智能体的可审计产品边界。
+
 ## 使用场景
 
 ```mermaid
@@ -111,6 +124,97 @@ xls report.xlsx
 
 TUI 已包含选择、编辑、撤销/重做、剪贴板、查找/跳转、工作表切换、冻结窗格、鼠标交互、列宽拖动、命令面板，以及正常退出或 panic 后的终端恢复。TUI 保存属于用户明确发起的覆盖操作，会替换关联路径。
 
+## CLI 详细用法
+
+产品有两种输出面。携带 `--json` 且 capability 为 `supported` 的命令进入稳定结构化协议；不带 `--json` 的调用可以进入能力更丰富的迁移人类终端命令面。下面的示例明确保留这条边界。
+
+### 检查、提取与公式求值
+
+| 任务 | 命令 | 输出面 |
+|:---|:---|:---|
+| 工作簿元数据 | `xls info report.xlsx --json` | 结构化，supported |
+| 单元格或 A1 范围 | `xls get report.xlsx 'Sheet1!A1:J200' --format json --json` | 结构化，supported |
+| 首尾若干行 | `xls head report.xlsx -n 20 --json` / `xls tail report.xlsx -n 20 --json` | 结构化，supported |
+| 人类表格/CSV/TSV/JSONL/Markdown | `xls get report.xlsx 'A1:J200' --format jsonl --header` | 迁移终端 |
+| 原始值和日期表达 | `xls get report.xlsx 'A1:J200' --raw --dates iso` | 迁移终端 |
+| 标量或数组公式求值 | `xls eval report.xlsx '=AVERAGE(A1:A10)'` | 迁移终端，partial |
+| 检查数字格式 | `xls format report.xlsx C2` | 迁移终端，partial |
+| 搜索单元格 | `xls grep report.xlsx ZANMAI` | 迁移终端，partial |
+| 列质量画像 | `xls profile report.xlsx amount` | 迁移终端，partial |
+| 比较工作簿 | `xls diff before.xlsx after.xlsx --key date` | 迁移终端，partial |
+
+终端 `get` 支持 `table`、`csv`、`tsv`、`json`、`jsonl`、`md`；`--header` 将第一行作为对象键或表头。`--raw` 关闭显示格式，`--dates iso|serial` 控制日期格式数值的表达。
+
+### 查询、重塑与合并
+
+```sh
+# 结构化只读 SQL：工作表是表，首行是表头。
+xls query report.xlsx \
+  'SELECT category, SUM(amount) AS total FROM Sheet1 GROUP BY category ORDER BY total DESC' \
+  --json
+
+# 迁移人类终端操作；对 JSON 调用方仍是 partial。
+xls pivot report.xlsx --rows category --values amount --agg sum
+xls filter report.xlsx 'amount>1000' --format csv
+xls join customers.xlsx orders.xlsx --on id
+```
+
+SQL 引擎支持仓库已实现的只读子集，包括过滤、分组、连接、排序和限制。应以命令帮助和 fixture 为准，不能假设兼容完整数据库 SQL。
+
+### 安全创建与编辑
+
+```sh
+# 稳定结构化写入：先计划，写新文件，再重新打开。
+xls new book.xlsx --sheet Data --dry-run --json
+xls new book.xlsx --sheet Data --json
+xls set book.xlsx 'Data!A1' '=SUM(B:B)' --output revised.xlsx --dry-run --json
+xls set book.xlsx 'Data!A1' '=SUM(B:B)' --output revised.xlsx --json
+xls fill revised.xlsx 'Data!B2:B20' 0 --output filled.xlsx --json
+xls insert-row filled.xlsx 3 -n 2 --output expanded.xlsx --json
+xls add-sheet expanded.xlsx Summary --output with-summary.xlsx --json
+xls recalc with-summary.xlsx --output recalculated.xlsx --json
+```
+
+高级迁移修改命令仍只面向终端，并且必须提供 `--output`、`--dry-run`、`--backup` 或显式 `--force`：
+
+```sh
+xls batch report.xlsx --set A1=1 --set B2=hi --output edited.xlsx
+xls sort report.xlsx --by amount --desc --output sorted.xlsx
+xls dedup report.xlsx --on id --output deduplicated.xlsx
+xls append base.xlsx new.xlsx --output combined.xlsx
+xls to-number report.xlsx H1:H200 --output numbers.xlsx
+xls to-date report.xlsx A2:A83 --format dd/mm/yyyy --output dates.xlsx
+xls format-set report.xlsx C2:C154 'dd/mm/yyyy' --output formatted.xlsx
+xls autofit report.xlsx --output fitted.xlsx
+xls style report.xlsx A1:D1 --bold --bg FFFF00 --output styled.xlsx
+xls copy report.xlsx A1:B3 D1 --output copied.xlsx
+```
+
+适用的公式函数会在求值时转换数字文本，但不会重写源单元格；`COUNT` 仍保持严格，因此 `COUNT` 与 `COUNTA` 的差异可以暴露文本数字。需要永久转换时使用 `to-number`。同理，使用 `to-date` 将文本日期转换为序列值并设置明确格式。
+
+### 名称、表格、转换与流式输出
+
+```sh
+# 名称和表格属于迁移终端能力（对 JSON 调用方为 partial）。
+xls table add report.xlsx A1:C20 --name Sales --output tabled.xlsx
+xls get tabled.xlsx 'Sales[Amount]' --format csv
+xls eval tabled.xlsx '=SUM(Sales[Amount])'
+xls name add tabled.xlsx TaxRate 'Sheet1!$E$1' --output named.xlsx
+
+# 结构化交换命令。
+xls convert old.xls converted.xlsx --dry-run --json
+xls convert old.xls converted.xlsx --json
+xls import tables.md generated.xlsx --dry-run --json
+xls import tables.md generated.xlsx --json
+xls export generated.xlsx exported.csv --format csv --dry-run --json
+xls export generated.xlsx exported.csv --format csv --json
+
+# 当前结构化 export 语法（完整工作簿路径）。
+xls export huge.xlsx huge.csv --format csv --json
+```
+
+CSV、TSV、JSONL 的逐行 sink 仍实现在 `src/cli/stream.rs`，但当前结构化 `export` 没有暴露旧 `--stream` 开关。在补齐 runner 接线和协议测试前，应将直接流式导出视为集成缺口。迁移终端读取器允许 `eval` 等命令用 `-` 从 CSV stdin 读取；stdin 修改仍必须指定输出路径。这些终端形式即使可用于脚本，也不会自动成为结构化 API。
+
 ## 命令执行流程
 
 ```mermaid
@@ -183,6 +287,62 @@ stateDiagram-v2
 | 保存 | 只有交互用户明确触发保存时，才通过统一 Workbook I/O 策略替换关联路径。 |
 | 终端恢复 | 正常退出和 panic 均恢复 raw mode、备用屏幕和鼠标捕获。 |
 | 公式状态 | TUI 打开工作簿时通过 `easyexcel_formula::Engine` 重算公式缓存。 |
+
+## Rust Library 边界
+
+旧项目将工作簿内部能力公开为 `xls::core`。该责任现在属于 EasyExcel-Rust 各组件 crate；`xls-cli` Library 公开的是稳定应用边界：类型化请求、执行上下文、能力清单、结果/错误类型与可复用 executor。
+
+```rust
+use xls_cli::{
+    CommandExecutor, CommandRequest, DefaultCommandExecutor, ExecutionContext,
+};
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let result = DefaultCommandExecutor::new().execute(
+        CommandRequest::Info {
+            input: "report.xlsx".into(),
+        },
+        &ExecutionContext::new(),
+    )?;
+    println!("{}", serde_json::to_string_pretty(&result)?);
+    Ok(())
+}
+```
+
+需要直接访问工作簿模型或公式 API 的应用，应依赖对应 EasyExcel-Rust 组件，而不是从 `xls-cli` 导入兼容模块。
+
+## 公式引擎与数据语义
+
+迁移公式引擎源码记录了 522 个标准工作表函数的逐项覆盖。该数量是迁移引擎的源码覆盖证据，不是 `xls capabilities` 字段；实际链接的 EasyExcel-Rust revision 才是运行时权威。
+
+| 分类 | 代表函数 |
+|:---|:---|
+| 逻辑 | `IF`、`IFS`、`SWITCH`、`AND`、`OR`、`XOR`、`IFERROR` |
+| 数学与三角 | `SUM`、`SUMIFS`、`SUMPRODUCT`、`ROUND`、`MOD`、`MDETERM`、`MMULT`、`SUBTOTAL`、`AGGREGATE` |
+| 统计 | `AVERAGEIFS`、`MEDIAN`、`STDEV.S`、`PERCENTILE.INC`、`RANK.EQ`、`NORM.DIST`、`CHISQ.TEST`、`FREQUENCY` |
+| 文本 | `LEFT`、`MID`、`SUBSTITUTE`、`TEXT`、`TEXTJOIN`、`TEXTBEFORE`、`REGEXEXTRACT`、`TEXTSPLIT` |
+| 查找与引用 | `VLOOKUP`、`XLOOKUP`、`INDEX`、`MATCH`、`OFFSET`、`INDIRECT`、`XMATCH` |
+| 动态数组 | `SORT`、`SORTBY`、`UNIQUE`、`FILTER`、`SEQUENCE`、`VSTACK`、`HSTACK`、`TAKE`、`DROP` |
+| 函数式公式 | `LAMBDA`、`LET`、`MAP`、`REDUCE`、`SCAN`、`BYROW`、`BYCOL`、`MAKEARRAY` |
+| 日期与时间 | `DATE`、`EDATE`、`EOMONTH`、`NETWORKDAYS`、`YEARFRAC`、`WEEKNUM` |
+| 财务 | `PMT`、`NPV`、`IRR`、`XIRR`、`PRICE`、`YIELD`、`DURATION`、`MIRR` |
+| 工程/信息/数据库 | 进制与位运算、`CONVERT`、`ERF`、复数 `IM*`、`ISNUMBER`、`TYPE`、`CELL`、`DSUM`、`DGET` |
+
+动态数组结果会溢出到相邻单元格，遇到阻塞返回 `#SPILL!`。`LAMBDA` 值可通过 `LET` 和高阶函数使用。范围运算符逐元素广播；标量函数需要逐项处理数组时应使用 `MAP`。依赖宿主应用、外部网络数据或 OLAP/Cube 连接的函数不属于确定性本地引擎，可能返回 `#N/A`。
+
+## 格式与加密支持
+
+| 格式 | 读取 | 写入/导出 | 重要行为 |
+|:---|:---:|:---:|:---|
+| XLSX | ✅ | ✅ | OOXML 单元格、公式、样式、合并、冻结窗格、名称和表格；基础组件包含逐行读取器。依赖的 opaque part 往返保真必须按实际文件验证。 |
+| XLS（BIFF8） | ✅ | ✅ | 原生 Rust 读写器；受格式约束时公式输出可能依赖缓存值。 |
+| CSV | ✅ | ✅ | EasyExcel CSV 组件提供分隔符探测、BOM/编码处理和标量类型推断。 |
+| TSV | 终端/文本输入家族 | ✅ 导出 | 主要作为表格文本输出，不是工作簿容器。 |
+| Markdown | ✅ 导入 | ✅ 导出 | 表格映射为工作表，多张表可创建多个工作表。 |
+| 静态 HTML | ✅ 导入 | ✅ 导出 | 仅解析本地 `<table>`，不执行脚本、远程资源或不受控 CSS。 |
+| JSON 表格 | ✅ 导入 | ✅ 导出 | 用于结构化表格交换，不是内部 Workbook 序列化格式。 |
+
+密码保护 XLSX 可通过 `--password-stdin` 或 `--password-env NAME` 打开，密码绝不能进入 argv。产品不承诺重新加密：除非 runtime 明确报告，否则应写入新路径并将结果视为未加密文件。旧 RC4/XOR 或少见加密方案可能只能被识别，无法解密。
 
 ## 安全写入与密码
 

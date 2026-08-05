@@ -15,6 +15,19 @@ npm launcher ┘          └──> interactive TUI ────> EasyExcel com
 
 中文说明请见 [README.zh-CN.md](README.zh-CN.md)。设计与实施依据见 [architecture](docs/XlsCli-Architecture.zh_CN.md) 和 [technical solution](docs/XlsCli-Technical-Solution.zh_CN.md)。
 
+## Why xls-cli
+
+| Requirement | What xls-cli provides | Ownership boundary |
+|:---|:---|:---|
+| Legacy and modern spreadsheets | Read and write XLS (BIFF8), XLSX (OOXML), and CSV | Format semantics live in EasyExcel-Rust foundation crates. |
+| Real formulas | Lexer/parser, dependency-aware recalculation, circular-reference detection, dynamic arrays, and `LAMBDA`-family functions | `easyexcel-formula` owns evaluation; `xls-cli` exposes `recalc` and the migrated terminal `eval`. |
+| Round-trip editing | Cells, styles, number formats, merges, frozen panes, names, and tables | Fidelity is format-dependent and must be checked by reopening the generated file. |
+| Agent-safe automation | Versioned JSON, capability discovery, stable errors, dry-run, resource limits, and explicit overwrite | The structured protocol is owned by `src/cli`; `partial` terminal commands are outside that contract. |
+| Human spreadsheet work | A mouse-aware, vim-flavored TUI in the same native binary | TUI state is local to one process and file session. |
+| Portable distribution | One Rust executable behind Cargo source builds and eight npm native packages | npm only selects and launches the installed binary; it does not reimplement spreadsheet behavior. |
+
+The earlier `xls` project described itself as “a spreadsheet for your terminal.” `xls-cli` retains that full terminal experience and adds an auditable product boundary for scripts and agents.
+
 ## Use cases
 
 ```mermaid
@@ -113,6 +126,97 @@ xls report.xlsx
 
 The TUI supports selection, editing, undo/redo, clipboard operations, find/go-to, sheet switching, frozen panes, mouse interaction, column resizing, a command palette, and terminal restoration on normal exit or panic. TUI saving is an explicit user action and replaces its associated file path.
 
+## Detailed CLI recipes
+
+There are two output surfaces. Commands with `--json` use the stable structured protocol when their capability is `supported`. Commands without `--json` may use the richer migrated human-terminal surface. The examples below keep that distinction explicit.
+
+### Inspect, extract, and evaluate
+
+| Task | Command | Surface |
+|:---|:---|:---|
+| Workbook metadata | `xls info report.xlsx --json` | Structured, supported |
+| One cell or A1 range | `xls get report.xlsx 'Sheet1!A1:J200' --format json --json` | Structured, supported |
+| First/last rows | `xls head report.xlsx -n 20 --json` / `xls tail report.xlsx -n 20 --json` | Structured, supported |
+| Human table/CSV/TSV/JSONL/Markdown output | `xls get report.xlsx 'A1:J200' --format jsonl --header` | Migrated terminal |
+| Raw values and date representation | `xls get report.xlsx 'A1:J200' --raw --dates iso` | Migrated terminal |
+| Evaluate a scalar or array formula | `xls eval report.xlsx '=AVERAGE(A1:A10)'` | Migrated terminal, partial |
+| Inspect number format | `xls format report.xlsx C2` | Migrated terminal, partial |
+| Search cells | `xls grep report.xlsx ZANMAI` | Migrated terminal, partial |
+| Column quality profile | `xls profile report.xlsx amount` | Migrated terminal, partial |
+| Compare workbooks | `xls diff before.xlsx after.xlsx --key date` | Migrated terminal, partial |
+
+Terminal `get` supports `table`, `csv`, `tsv`, `json`, `jsonl`, and `md`; `--header` uses the first row as object keys or labels. `--raw` suppresses display formatting, and `--dates iso|serial` controls date-formatted numeric cells.
+
+### Query, reshape, and combine
+
+```sh
+# Structured, read-only SQL. Sheets are tables and row 0 is the header.
+xls query report.xlsx \
+  'SELECT category, SUM(amount) AS total FROM Sheet1 GROUP BY category ORDER BY total DESC' \
+  --json
+
+# Migrated human-terminal operations; capability is partial for JSON callers.
+xls pivot report.xlsx --rows category --values amount --agg sum
+xls filter report.xlsx 'amount>1000' --format csv
+xls join customers.xlsx orders.xlsx --on id
+```
+
+The SQL engine supports the repository's implemented read-only subset, including filtering, grouping, joins, ordering, and limits. Use command help and fixtures rather than assuming full database SQL compatibility.
+
+### Create and edit safely
+
+```sh
+# Stable structured writes: plan, write a new file, then reopen it.
+xls new book.xlsx --sheet Data --dry-run --json
+xls new book.xlsx --sheet Data --json
+xls set book.xlsx 'Data!A1' '=SUM(B:B)' --output revised.xlsx --dry-run --json
+xls set book.xlsx 'Data!A1' '=SUM(B:B)' --output revised.xlsx --json
+xls fill revised.xlsx 'Data!B2:B20' 0 --output filled.xlsx --json
+xls insert-row filled.xlsx 3 -n 2 --output expanded.xlsx --json
+xls add-sheet expanded.xlsx Summary --output with-summary.xlsx --json
+xls recalc with-summary.xlsx --output recalculated.xlsx --json
+```
+
+Advanced migrated mutations remain terminal-only and must use `--output`, `--dry-run`, `--backup`, or explicit `--force`:
+
+```sh
+xls batch report.xlsx --set A1=1 --set B2=hi --output edited.xlsx
+xls sort report.xlsx --by amount --desc --output sorted.xlsx
+xls dedup report.xlsx --on id --output deduplicated.xlsx
+xls append base.xlsx new.xlsx --output combined.xlsx
+xls to-number report.xlsx H1:H200 --output numbers.xlsx
+xls to-date report.xlsx A2:A83 --format dd/mm/yyyy --output dates.xlsx
+xls format-set report.xlsx C2:C154 'dd/mm/yyyy' --output formatted.xlsx
+xls autofit report.xlsx --output fitted.xlsx
+xls style report.xlsx A1:D1 --bold --bg FFFF00 --output styled.xlsx
+xls copy report.xlsx A1:B3 D1 --output copied.xlsx
+```
+
+Numeric-looking text is coerced by applicable formula functions without rewriting the source; `COUNT` remains strict, so a `COUNT`/`COUNTA` difference can reveal text-stored numbers. Use `to-number` for a permanent conversion. Likewise, use `to-date` to convert text dates to serial values with an explicit number format.
+
+### Names, tables, conversion, and streaming
+
+```sh
+# Names and tables are migrated terminal capabilities (partial for JSON callers).
+xls table add report.xlsx A1:C20 --name Sales --output tabled.xlsx
+xls get tabled.xlsx 'Sales[Amount]' --format csv
+xls eval tabled.xlsx '=SUM(Sales[Amount])'
+xls name add tabled.xlsx TaxRate 'Sheet1!$E$1' --output named.xlsx
+
+# Structured exchange commands.
+xls convert old.xls converted.xlsx --dry-run --json
+xls convert old.xls converted.xlsx --json
+xls import tables.md generated.xlsx --dry-run --json
+xls import tables.md generated.xlsx --json
+xls export generated.xlsx exported.csv --format csv --dry-run --json
+xls export generated.xlsx exported.csv --format csv --json
+
+# Current structured export syntax (materialized workbook path).
+xls export huge.xlsx huge.csv --format csv --json
+```
+
+The row-streaming sinks for CSV, TSV, and JSONL remain implemented in `src/cli/stream.rs`, but the current structured `export` command does not expose the old `--stream` switch. Treat direct streaming as an integration gap until runner wiring and protocol tests are added. The migrated terminal reader accepts `-` for CSV stdin in commands such as `eval`; stdin mutations still require an explicit output path. These terminal-only forms do not become structured APIs merely because they are scriptable.
+
 ## Command execution flow
 
 ```mermaid
@@ -185,6 +289,62 @@ stateDiagram-v2
 | Saving | The interactive user explicitly triggers save; the associated path is then replaced through the unified workbook I/O policy. |
 | Terminal recovery | Normal exit and panic handling restore raw mode, alternate screen, and mouse capture. |
 | Formula state | The TUI recalculates workbook formula caches on open through `easyexcel_formula::Engine`. |
+
+## Rust library boundary
+
+The old project exposed workbook internals as `xls::core`. That responsibility now belongs to the EasyExcel-Rust crates. The `xls-cli` library instead exposes the stable application boundary: typed requests, execution context, capability manifest, result/error types, and the reusable executor.
+
+```rust
+use xls_cli::{
+    CommandExecutor, CommandRequest, DefaultCommandExecutor, ExecutionContext,
+};
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let result = DefaultCommandExecutor::new().execute(
+        CommandRequest::Info {
+            input: "report.xlsx".into(),
+        },
+        &ExecutionContext::new(),
+    )?;
+    println!("{}", serde_json::to_string_pretty(&result)?);
+    Ok(())
+}
+```
+
+Applications that need direct workbook/model/formula APIs should depend on the corresponding EasyExcel-Rust component rather than importing a compatibility module from `xls-cli`.
+
+## Formula engine and data semantics
+
+The migrated formula-engine source records one-by-one coverage of 522 standard worksheet functions. That count is source-coverage evidence from the migrated engine, not a field in `xls capabilities`; the actual linked EasyExcel-Rust revision remains the runtime authority.
+
+| Category | Representative functions |
+|:---|:---|
+| Logical | `IF`, `IFS`, `SWITCH`, `AND`, `OR`, `XOR`, `IFERROR` |
+| Math and trigonometry | `SUM`, `SUMIFS`, `SUMPRODUCT`, `ROUND`, `MOD`, `MDETERM`, `MMULT`, `SUBTOTAL`, `AGGREGATE` |
+| Statistical | `AVERAGEIFS`, `MEDIAN`, `STDEV.S`, `PERCENTILE.INC`, `RANK.EQ`, `NORM.DIST`, `CHISQ.TEST`, `FREQUENCY` |
+| Text | `LEFT`, `MID`, `SUBSTITUTE`, `TEXT`, `TEXTJOIN`, `TEXTBEFORE`, `REGEXEXTRACT`, `TEXTSPLIT` |
+| Lookup and reference | `VLOOKUP`, `XLOOKUP`, `INDEX`, `MATCH`, `OFFSET`, `INDIRECT`, `XMATCH` |
+| Dynamic arrays | `SORT`, `SORTBY`, `UNIQUE`, `FILTER`, `SEQUENCE`, `VSTACK`, `HSTACK`, `TAKE`, `DROP` |
+| Functional formulas | `LAMBDA`, `LET`, `MAP`, `REDUCE`, `SCAN`, `BYROW`, `BYCOL`, `MAKEARRAY` |
+| Date and time | `DATE`, `EDATE`, `EOMONTH`, `NETWORKDAYS`, `YEARFRAC`, `WEEKNUM` |
+| Financial | `PMT`, `NPV`, `IRR`, `XIRR`, `PRICE`, `YIELD`, `DURATION`, `MIRR` |
+| Engineering/information/database | Base and bit functions, `CONVERT`, `ERF`, complex `IM*`, `ISNUMBER`, `TYPE`, `CELL`, `DSUM`, `DGET` |
+
+Dynamic-array results spill into neighboring cells and report `#SPILL!` when blocked. `LAMBDA` values can be used through `LET` and higher-order functions. Range operators broadcast element-wise; use `MAP` when a scalar function must be applied to every array element. Functions requiring a host application, external web data, or OLAP/cube connections remain outside the deterministic local engine and may return `#N/A`.
+
+## Format and encryption support
+
+| Format | Read | Write/export | Important behavior |
+|:---|:---:|:---:|:---|
+| XLSX | ✅ | ✅ | OOXML cells, formulas, styles, merges, frozen panes, names, and tables; the foundation includes row-streaming readers. Round-trip opaque-part fidelity must be verified for the files you depend on. |
+| XLS (BIFF8) | ✅ | ✅ | Native Rust reader/writer; formula output may rely on cached values depending on format constraints. |
+| CSV | ✅ | ✅ | Delimiter detection, BOM/encoding handling, and scalar inference are provided by the EasyExcel CSV component. |
+| TSV | Terminal/text input family | ✅ export | Primarily a tabular text output rather than a workbook container. |
+| Markdown | ✅ import | ✅ export | Tables map to sheets; multiple tables can create multiple sheets. |
+| Static HTML | ✅ import | ✅ export | Parses local `<table>` markup only; no scripts, remote resources, or uncontrolled CSS execution. |
+| JSON tables | ✅ import | ✅ export | Structured table interchange; not a serialized internal workbook model. |
+
+Password-protected XLSX files can be opened through `--password-stdin` or `--password-env NAME`. Never put secrets in argv. Re-encryption is not promised: write to a new output path and treat the result as unencrypted unless the runtime explicitly reports otherwise. Legacy RC4/XOR or uncommon encryption schemes may be identified without being decryptable.
 
 ## Safe writing and secrets
 
