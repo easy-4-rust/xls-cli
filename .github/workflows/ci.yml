@@ -9,11 +9,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout xls-cli
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           path: xls-cli
       - name: Checkout EasyExcel-Rust foundations
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: easy-4-rust/easyexcel-rust
           ref: bb3a08055cfe5307ce0cdafe2cfb4f2102a99686

@@ -1,0 +1,5 @@
+[build.env]
+# `easyexcel` is a path dependency whose crates inherit metadata from the
+# EasyExcel workspace root. Cross must mount that complete workspace into the
+# build container instead of copying only the referenced crate directory.
+volumes = ["EASYEXCEL_WORKSPACE"]

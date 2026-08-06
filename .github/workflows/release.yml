@@ -58,11 +58,11 @@ jobs:
     runs-on: ${{ matrix.runner }}
     steps:
       - name: Checkout xls-cli
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           path: xls-cli
       - name: Checkout EasyExcel-Rust foundations
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: easy-4-rust/easyexcel-rust
           ref: bb3a08055cfe5307ce0cdafe2cfb4f2102a99686
@@ -80,6 +80,8 @@ jobs:
       - name: Build with cross
         if: matrix.builder == 'cross'
         working-directory: xls-cli
+        env:
+          EASYEXCEL_WORKSPACE: ${{ github.workspace }}/easyexcel-rust
         run: cross build --release --locked --target ${{ matrix.target }}
       - name: Smoke test native binary
         if: matrix.builder == 'cargo'
@@ -100,7 +102,7 @@ jobs:
           cp xls-cli/LICENSE-APACHE xls-cli/LICENSE-MIT xls-cli/NOTICE \
              "xls-cli/packages/${{ matrix.package }}/"
       - name: Upload native package
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: native-${{ matrix.package }}
           path: xls-cli/packages/${{ matrix.package }}
@@ -110,12 +112,12 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           registry-url: https://registry.npmjs.org
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v6
         with:
           path: native
       - name: Verify versions and stage packages
