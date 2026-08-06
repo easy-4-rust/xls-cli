@@ -16,7 +16,7 @@ jobs:
         uses: actions/checkout@v5
         with:
           repository: easy-4-rust/easyexcel-rust
-          ref: d6a1222cc23d050b7e9daca4a9ba60f18bd5d017
+          ref: 92c7f8c8a88c31078bbfa4b9cd3d25a4ffd095d8
           path: easyexcel-rust
       - uses: dtolnay/rust-toolchain@1.88.0
         with:
