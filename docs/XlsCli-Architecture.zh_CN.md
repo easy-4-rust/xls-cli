@@ -3,7 +3,7 @@
 > **文档说明**：基于当前仓库静态源码与本地 binary capability 输出，定义 `xls-cli` 的组件边界、运行时流程、安全契约、演进边界与验证方式。
 >
 > **版本**：V1.0.0
-> **最后更新**：2026-08-05
+> **最后更新**：2026-08-06
 > **证据边界**：目标目录未包含 `.codegraph/`，因此本报告不能提供 CodeGraph 运行查询证据；以下“当前实现”均来自静态源码、构建清单、CI 配置和本地 `target/debug/xls capabilities --json` 输出。尚未把本次结论当作生产环境运行证据。
 
 ## 1. 架构驱动与范围
@@ -64,6 +64,36 @@ flowchart LR
 | Skill | 编排安全调用序列 | 重实现解析或修改工作簿 | `skills/xls-cli/SKILL.md` |
 
 依赖方向必须维持为：`cli`、`tui` → `easyexcel` facade；npm 与 Skill → `xls` binary。不得恢复 `xls-cli` 对旧 `xls` fork 或 `easyexcel-*` 基础 crate 的直接生产依赖。
+
+### 3.1 命令面分层
+
+`xls` 同时承载结构化命令、迁移终端命令和 TUI，但三者的稳定性契约不同：
+
+| 命令面 | 入口 | 调用方 | 稳定契约 | 发现方式 |
+|:---|:---|:---|:---|:---|
+| 结构化 CLI | `info/get/... --json` | Agent、脚本、CI | schema 1.0、稳定错误码、单 JSON stdout | `capabilities --json` + `schema` |
+| 人类终端 CLI | 不带 `--json` 的迁移命令 | 终端用户 | 人类输出、命令帮助；不承诺 JSON | `xls COMMAND --help` |
+| TUI | `open FILE` 或 `xls FILE` | 人类交互用户 | 会话状态、显式保存、终端恢复 | `xls --help` |
+
+结构化命令当前覆盖检查、提取、查询、基础编辑、行列编辑、工作表管理、格式交换、公式重算和协议发现。`partial` 命令即使终端可运行，也必须在 Agent Skill 中视为不可自动化，直到具备 request/result/schema/process test。
+
+### 3.2 Skill 分发与运行关系
+
+```mermaid
+flowchart LR
+    Source["skills/xls-cli/SKILL.md<br/>唯一编辑源"] --> Sync["node scripts/sync-skills.js"]
+    Sync --> OpenClaw["skills/dist/openclaw/xls-cli"]
+    Sync --> Hermes["skills/dist/hermes/xls-cli"]
+
+    Npm["npm install -g @partme.ai/xls-cli"] --> Binary["PATH 中的 xls"]
+    OpenClaw --> AgentA["OpenClaw Agent"]
+    Hermes --> AgentB["Hermes Agent"]
+    AgentA --> Binary
+    AgentB --> Binary
+    Binary --> Facade["easyexcel facade"]
+```
+
+Skill 与二进制必须分别安装。Skill 只定义安全调用规约，不包含原生二进制、不解析工作簿，也不绕过 capability。OpenClaw 可使用 `openclaw skills install ... --as xls-cli` 安装 workspace/global 副本；Hermes 使用 `~/.hermes/skills/` 下的标准技能目录。安装后必须在新会话中同时验证 Skill 可见和 `xls capabilities --json` 可执行。
 
 ## 4. 运行流程与失败语义
 
@@ -131,6 +161,7 @@ Runner 首先识别无 `--json` 的迁移终端命令和文件路径；这些请
 | 操作阶段 | 检查 | 失败恢复 |
 |:---|:---|:---|
 | 安装 | `xls --version`、`xls capabilities --json` | 重新安装当前平台 optional package；源码则 `cargo build` |
+| Skill 安装 | `openclaw skills list` 或 `hermes skills list`，然后让 Agent 执行 capability | 重新同步分发副本；确认 Agent 进程的 PATH 能找到 `xls` |
 | 写入前 | `info`、dry-run、审阅 `files`/`warnings` | 修正范围、限制或新输出路径；不使用盲目 `--force` |
 | 写入后 | `info OUTPUT` + 精确 `get OUTPUT RANGE` | 保留源文件，删除或替换新输出仅在用户授权后执行 |
 | TUI 异常 | 退出恢复终端属性 | 必要时执行 `reset`；随后用 CLI 重新检查文件 |
@@ -173,5 +204,5 @@ flowchart LR
 
 **文档版本**：V1.0.0
 **创建日期**：2026-08-05
-**最后更新**：2026-08-05
+**最后更新**：2026-08-06
 **文档状态**：✅ 待评审

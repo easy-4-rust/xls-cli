@@ -1,3 +1,3 @@
-# @easy4rust/xls-cli-win32-x64
+# @partme.ai/xls-cli-win32-x64
 
-Platform binary package. Install `@easy4rust/xls-cli`; do not depend on this package directly.
+Platform binary package. Install `@partme.ai/xls-cli`; do not depend on this package directly.

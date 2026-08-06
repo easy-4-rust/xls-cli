@@ -13,7 +13,7 @@ Shell 用户 ──┤        │
 npm 启动器 ──┘        └──> 交互式 TUI ───────> EasyExcel 组件
 ```
 
-English documentation: [README.md](README.md)。设计与实施依据见[架构文档](docs/XlsCli-Architecture.zh_CN.md)和[技术方案](docs/XlsCli-Technical-Solution.zh_CN.md)。
+英文说明见 [README.md](README.md)。设计与实施依据见[架构文档](docs/XlsCli-Architecture.zh_CN.md)和[技术方案](docs/XlsCli-Technical-Solution.zh_CN.md)。
 
 ## 为什么选择 xls-cli
 
@@ -69,17 +69,21 @@ flowchart LR
 
 ## 安装与验证
 
+`xls` 二进制和 `xls-cli` Skill 是两层独立能力：npm/Cargo 安装负责让命令可执行，Skill 安装负责教智能体以安全顺序调用命令。智能体场景需要同时完成两层安装。
+
+### 安装 `xls` 二进制
+
 已发布的 npm 使用者安装启动器包。它通过 optional dependency 选择当前平台的原生包；安装过程不下载任意 URL，也不在本机临时编译。
 
 ```sh
-npm install -g @easy4rust/xls-cli
+npm install -g @partme.ai/xls-cli
 xls --version
 xls capabilities --json
 ```
 
 npm 原生包覆盖 macOS、Linux GNU、Linux musl 与 Windows 的 `x64`、`arm64`。不支持的平台或架构会由启动器显式报错。
 
-源码开发需要将本仓库与 `easyexcel-rust` 检出放在同一父目录，因为 `Cargo.toml` 使用相对 path dependency：
+源码开发或尚未发布 npm 包时，将本仓库与 `easyexcel-rust` 检出到同一父目录，因为 `Cargo.toml` 使用相对 path dependency：
 
 ```text
 parent/
@@ -94,6 +98,42 @@ XLS_CLI_BINARY="$PWD/target/debug/xls" node bin/xls.js --version
 ```
 
 `Cargo.toml` 声明 Rust edition 2024 与 MSRV `1.88`。
+
+### 安装 `xls-cli` Skill
+
+从仓库 checkout 安装到 OpenClaw 当前 workspace：
+
+```sh
+openclaw skills install ./skills/dist/openclaw/xls-cli --as xls-cli
+openclaw skills list
+```
+
+安装为 OpenClaw 全局共享 Skill：
+
+```sh
+openclaw skills install ./skills/dist/openclaw/xls-cli --as xls-cli --global
+openclaw skills list
+```
+
+Hermes Agent 从标准技能目录发现本地 Skill：
+
+```sh
+mkdir -p "$HOME/.hermes/skills/spreadsheets/xls-cli"
+cp skills/dist/hermes/xls-cli/SKILL.md \
+  "$HOME/.hermes/skills/spreadsheets/xls-cli/SKILL.md"
+hermes skills list
+```
+
+如果从全局 npm 包安装，先定位包目录，再使用其中的分发副本：
+
+```sh
+XLS_CLI_PACKAGE="$(npm root -g)/@partme.ai/xls-cli"
+openclaw skills install \
+  "$XLS_CLI_PACKAGE/skills/dist/openclaw/xls-cli" \
+  --as xls-cli --global
+```
+
+安装后重新启动智能体会话，并让智能体执行 `xls capabilities --json`。Skill 不内嵌二进制，也不替代 npm/Cargo 安装。OpenClaw 的本地/全局 Skill 规则见[官方文档](https://docs.openclaw.ai/tools/skills)，Hermes 的技能目录和安装模型见[官方指南](https://github.com/NousResearch/hermes-agent/blob/main/website/docs/guides/work-with-skills.md)。
 
 ## 快速开始
 
@@ -132,6 +172,30 @@ xls report.xlsx
 ```
 
 TUI 已包含选择、编辑、撤销/重做、剪贴板、查找/跳转、工作表切换、冻结窗格、鼠标交互、列宽拖动、命令面板，以及正常退出或 panic 后的终端恢复。TUI 保存属于用户明确发起的覆盖操作，会替换关联路径。
+
+### 命令发现
+
+不要依赖 README 猜测当前构建能力。人类用户先看命令帮助，脚本和智能体先看 capability 与 schema：
+
+```sh
+xls --help
+xls export --help
+xls import --help
+xls capabilities --json
+xls schema --command export --json
+```
+
+| 任务 | 命令 | 关键参数 |
+|:---|:---|:---|
+| 检查与提取 | `info`、`get`、`head`、`tail` | `RANGE`、`--sheet`、`--format`、`-n` |
+| 查询 | `query` | 只读 SQL 字符串 |
+| 单元格编辑 | `set`、`clear`、`fill` | `--output`、`--dry-run`、`--force` |
+| 行列编辑 | `insert-row`、`delete-row`、`insert-col`、`delete-col` | 零基位置、`-n/--count`、`--sheet` |
+| 工作簿管理 | `new`、`add-sheet`、`delete-sheet`、`rename-sheet`、`recalc` | 输出路径、sheet 名称 |
+| 文件交换 | `convert`、`import`、`export` | 目标扩展名、`--format`、Markdown 策略 |
+| 协议发现 | `capabilities`、`schema` | `--json`、`--command NAME` |
+
+`insert-row` 等是 clap 命令名；JSON capability 使用稳定协议名 `insert-rows`、`delete-rows`、`insert-columns`、`delete-columns`。命令行别名继续兼容复数形式。
 
 ## CLI 详细用法
 
@@ -222,7 +286,7 @@ xls export generated.xlsx exported.csv --format csv --json
 xls export huge.xlsx huge.csv --format csv --json
 ```
 
-CSV、TSV、JSONL 的逐行 sink 仍实现在 `src/cli/stream.rs`，但当前结构化 `export` 没有暴露旧 `--stream` 开关。在补齐 runner 接线和协议测试前，应将直接流式导出视为集成缺口。迁移终端读取器允许 `eval` 等命令用 `-` 从 CSV stdin 读取；stdin 修改仍必须指定输出路径。这些终端形式即使可用于脚本，也不会自动成为结构化 API。
+结构化 Markdown 导出已经提供 `--mode auto|event|workbook`，`--stream` 是 `--mode event` 的兼容别名。Event Mode 仅用于 **XLSX/CSV → Markdown**，使用公式缓存值并保持有界内存；XLS、公式表达式输出和需要完整合并元数据的策略必须使用 Workbook Mode。显式请求不兼容的 Event Mode 会返回错误，不会静默降级。迁移终端读取器仍允许 `eval` 等命令用 `-` 从 CSV stdin 读取；stdin 修改必须指定输出路径。
 
 ## 命令执行流程
 
@@ -377,7 +441,7 @@ JSON 模式下 stdout 只输出一个完整的结果或错误对象。成功结�
 
 ## Agent Skill
 
-Skill 源文件为 [skills/xls-cli/SKILL.md](skills/xls-cli/SKILL.md)。`scripts/sync-skills.js` 将其同步到 OpenClaw 与 Hermes 的分发目录。
+Skill 源文件为 [skills/xls-cli/SKILL.md](skills/xls-cli/SKILL.md)，OpenClaw 与 Hermes 使用 `skills/dist/<agent>/xls-cli/` 中的分发副本。`node scripts/sync-skills.js` 是唯一同步入口，修改源 Skill 后必须运行并检查三个副本完全一致。
 
 规定的写入序列是：
 
@@ -386,6 +450,16 @@ capabilities → info → dry-run → 写入新文件 → info + 精确 get 验�
 ```
 
 这使 runtime capability manifest，而不是可能过时的 README，成为能力事实来源。
+
+安装 Skill 后，可以直接向智能体提出任务，而不是手工拼接所有命令：
+
+```text
+使用 xls-cli 检查 report.xlsx，提取 Sales 工作表 A1:F200，并返回 JSON。
+使用 xls-cli 把 tables.md 生成 result.xlsx；先 dry-run，不覆盖任何已有文件，完成后重新读取校验。
+使用 xls-cli 将 report.xlsx 导出为 AgentStable Markdown，保留结构化 warning。
+```
+
+Skill 会要求智能体按 `capabilities → info → dry-run → apply → reopen/get` 执行。它还约束密码不得进入 argv、`partial` 命令不得伪装为 JSON API、warning 不得被忽略，以及未获得明确授权时不得使用 `--force`。
 
 ## 开发与发布
 

@@ -63,7 +63,7 @@ impl Editor {
         self.area.input(input)
     }
 
-    /// The underlying text area; in tui-textarea 0.7 a `&TextArea` is itself a
+    /// The underlying text area; a `&TextArea` is itself a
     /// `Widget`, so render it via `Frame::render_widget(editor.widget(), area)`.
     pub fn widget(&self) -> &TextArea<'static> {
         &self.area

@@ -1,5 +1,5 @@
 {
-  "name": "@easy4rust/xls-cli-linux-arm64-musl",
+  "name": "@partme.ai/xls-cli-linux-arm64-musl",
   "version": "0.1.0",
   "description": "Native xls-cli binary for Linux arm64 musl",
   "license": "MIT OR Apache-2.0",

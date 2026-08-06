@@ -1,4 +1,4 @@
 interface:
   display_name: "xls-cli"
-  short_description: "Safely read, edit, and convert spreadsheet files"
-  default_prompt: "Use $xls-cli to inspect capabilities first, then safely complete the spreadsheet task with JSON output, dry-run writes, and output verification."
+  short_description: "Safely automate local spreadsheet workflows"
+  default_prompt: "Use $xls-cli to discover runtime capabilities, complete the spreadsheet task with structured JSON, dry-run every write, preserve warnings, and reopen outputs for verification."

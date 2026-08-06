@@ -13,7 +13,7 @@ Shell user ──┤          │
 npm launcher ┘          └──> interactive TUI ────> EasyExcel components
 ```
 
-中文说明请见 [README.zh-CN.md](README.zh-CN.md)。设计与实施依据见 [architecture](docs/XlsCli-Architecture.zh_CN.md) 和 [technical solution](docs/XlsCli-Technical-Solution.zh_CN.md)。
+See the [Chinese README](README.zh-CN.md). The [architecture](docs/XlsCli-Architecture.zh_CN.md) and [technical solution](docs/XlsCli-Technical-Solution.zh_CN.md) document the design and delivery boundaries.
 
 ## Why xls-cli
 
@@ -69,17 +69,21 @@ The binary's `xls capabilities --json` result is the source of truth. The follow
 
 ## Install and verify
 
-Published npm consumers install the launcher package. Its optional dependency selects the native package for the current supported platform; install neither downloads arbitrary URLs nor compiles code.
+The `xls` binary and the `xls-cli` Skill are separate layers: npm/Cargo makes the command executable, while the Skill teaches an agent how to call it safely. Agent deployments need both layers.
+
+### Install the `xls` binary
+
+Published npm consumers install the launcher package. Its optional dependency selects the native package for the current supported platform; installation neither downloads arbitrary URLs nor compiles Rust locally.
 
 ```sh
-npm install -g @easy4rust/xls-cli
+npm install -g @partme.ai/xls-cli
 xls --version
 xls capabilities --json
 ```
 
 Native npm packages are defined for macOS, Linux GNU, Linux musl, and Windows on `x64` and `arm64`. Unsupported platform/architecture pairs fail with an explicit launcher error.
 
-For source development, place this repository beside the required `easyexcel-rust` checkout because the Cargo manifest uses relative path dependencies:
+For source development, or before the npm package is published, place this repository beside the required `easyexcel-rust` checkout because the Cargo manifest uses a relative path dependency:
 
 ```text
 parent/
@@ -96,6 +100,42 @@ XLS_CLI_BINARY="$PWD/target/debug/xls" node bin/xls.js --version
 ```
 
 The crate declares Rust edition 2024 and MSRV `1.88` in `Cargo.toml`.
+
+### Install the `xls-cli` Skill
+
+Install from a repository checkout into the active OpenClaw workspace:
+
+```sh
+openclaw skills install ./skills/dist/openclaw/xls-cli --as xls-cli
+openclaw skills list
+```
+
+Install it as a global OpenClaw Skill:
+
+```sh
+openclaw skills install ./skills/dist/openclaw/xls-cli --as xls-cli --global
+openclaw skills list
+```
+
+Hermes Agent discovers local Skills under its standard skill root:
+
+```sh
+mkdir -p "$HOME/.hermes/skills/spreadsheets/xls-cli"
+cp skills/dist/hermes/xls-cli/SKILL.md \
+  "$HOME/.hermes/skills/spreadsheets/xls-cli/SKILL.md"
+hermes skills list
+```
+
+To install from the global npm package, resolve the package directory first:
+
+```sh
+XLS_CLI_PACKAGE="$(npm root -g)/@partme.ai/xls-cli"
+openclaw skills install \
+  "$XLS_CLI_PACKAGE/skills/dist/openclaw/xls-cli" \
+  --as xls-cli --global
+```
+
+Restart the agent session after installation and ask it to run `xls capabilities --json`. The Skill does not embed the binary and does not replace the npm/Cargo installation. See the official [OpenClaw Skills documentation](https://docs.openclaw.ai/tools/skills) and [Hermes Agent skill guide](https://github.com/NousResearch/hermes-agent/blob/main/website/docs/guides/work-with-skills.md) for discovery rules.
 
 ## Quick start
 
@@ -134,6 +174,30 @@ xls report.xlsx
 ```
 
 The TUI supports selection, editing, undo/redo, clipboard operations, find/go-to, sheet switching, frozen panes, mouse interaction, column resizing, a command palette, and terminal restoration on normal exit or panic. TUI saving is an explicit user action and replaces its associated file path.
+
+### Discover commands
+
+Do not guess the current build from a README. Human users should inspect help; scripts and agents should inspect capabilities and schemas:
+
+```sh
+xls --help
+xls export --help
+xls import --help
+xls capabilities --json
+xls schema --command export --json
+```
+
+| Task | Commands | Important inputs |
+|:---|:---|:---|
+| Inspect and extract | `info`, `get`, `head`, `tail` | `RANGE`, `--sheet`, `--format`, `-n` |
+| Query | `query` | Read-only SQL string |
+| Edit cells | `set`, `clear`, `fill` | `--output`, `--dry-run`, `--force` |
+| Edit rows/columns | `insert-row`, `delete-row`, `insert-col`, `delete-col` | Zero-based position, `-n/--count`, `--sheet` |
+| Manage workbooks | `new`, `add-sheet`, `delete-sheet`, `rename-sheet`, `recalc` | Output path and sheet names |
+| Exchange files | `convert`, `import`, `export` | Target extension, `--format`, Markdown policies |
+| Discover protocol | `capabilities`, `schema` | `--json`, `--command NAME` |
+
+The clap commands use singular names such as `insert-row`; the capability protocol uses stable names `insert-rows`, `delete-rows`, `insert-columns`, and `delete-columns`. Plural CLI aliases remain accepted.
 
 ## Detailed CLI recipes
 
@@ -224,7 +288,7 @@ xls export generated.xlsx exported.csv --format csv --json
 xls export huge.xlsx huge.csv --format csv --json
 ```
 
-The row-streaming sinks for CSV, TSV, and JSONL remain implemented in `src/cli/stream.rs`, but the current structured `export` command does not expose the old `--stream` switch. Treat direct streaming as an integration gap until runner wiring and protocol tests are added. The migrated terminal reader accepts `-` for CSV stdin in commands such as `eval`; stdin mutations still require an explicit output path. These terminal-only forms do not become structured APIs merely because they are scriptable.
+Structured Markdown export supports `--mode auto|event|workbook`; `--stream` is an alias for `--mode event`. Event Mode applies only to **XLSX/CSV → Markdown**, uses cached formula values, and keeps memory bounded. XLS, expression output, and policies requiring complete merge metadata use Workbook Mode. An explicitly incompatible Event request fails instead of silently degrading. The migrated terminal reader still accepts `-` for CSV stdin in commands such as `eval`; stdin mutations require an explicit output path.
 
 ## Command execution flow
 
@@ -379,7 +443,7 @@ In JSON mode, stdout contains exactly one result or error object. Successful res
 
 ## Agent Skill
 
-The source Skill is [skills/xls-cli/SKILL.md](skills/xls-cli/SKILL.md). `scripts/sync-skills.js` copies it to the OpenClaw and Hermes distribution paths.
+The source Skill is [skills/xls-cli/SKILL.md](skills/xls-cli/SKILL.md). OpenClaw and Hermes consume copies under `skills/dist/<agent>/xls-cli/`. `node scripts/sync-skills.js` is the only synchronization entry point; after editing the source, run it and verify that all three copies match.
 
 Its required write sequence is:
 
@@ -388,6 +452,16 @@ capabilities → info → dry-run → write a new file → info + focused get ve
 ```
 
 This makes the capability manifest, not a stale README, the runtime truth.
+
+After installing the Skill, users can describe the intended result instead of assembling every command manually:
+
+```text
+Use xls-cli to inspect report.xlsx, extract Sales!A1:F200, and return JSON.
+Use xls-cli to create result.xlsx from tables.md; dry-run first, do not overwrite anything, then reopen and verify it.
+Use xls-cli to export report.xlsx as AgentStable Markdown and preserve every structured warning.
+```
+
+The Skill enforces `capabilities → info → dry-run → apply → reopen/get`. It also prevents passwords in argv, refuses to treat `partial` commands as JSON APIs, treats warnings as result data, and disallows `--force` without explicit authorization for the exact path.
 
 ## Development and release
 

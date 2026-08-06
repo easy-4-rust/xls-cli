@@ -16,10 +16,10 @@ function packageName() {
   if (!['x64', 'arm64'].includes(arch)) {
     return `unsupported-${process.platform}-${arch}`;
   }
-  if (process.platform === 'darwin') return `@easy4rust/xls-cli-darwin-${arch}`;
-  if (process.platform === 'win32') return `@easy4rust/xls-cli-win32-${arch}`;
+  if (process.platform === 'darwin') return `@partme.ai/xls-cli-darwin-${arch}`;
+  if (process.platform === 'win32') return `@partme.ai/xls-cli-win32-${arch}`;
   if (process.platform === 'linux') {
-    return `@easy4rust/xls-cli-linux-${arch}-${linuxLibc()}`;
+    return `@partme.ai/xls-cli-linux-${arch}-${linuxLibc()}`;
   }
   return `unsupported-${process.platform}-${arch}`;
 }

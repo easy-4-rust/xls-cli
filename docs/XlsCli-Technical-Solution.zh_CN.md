@@ -3,7 +3,7 @@
 > **文档说明**：将 `xls-cli` 当前源码能力转化为可执行的工程交付方案，覆盖协议收敛、质量门、发布、风险与可验收里程碑。
 >
 > **版本**：V1.0.0
-> **最后更新**：2026-08-05
+> **最后更新**：2026-08-06
 > **状态口径**：已实现能力以 `xls capabilities --json` 为准；本方案中的里程碑均为目标，不表示已发布。
 
 ## 1. 目标、非目标与交付物
@@ -77,6 +77,25 @@ flowchart TB
 - 每个新智能体命令都必须同步修改 `CommandName`、request、executor、capability manifest、schema、README/Skill 与 process test。
 - terminal-only 命令保持 `partial`，直到结构化 result contract 和测试完成；不得以解析终端文本替代。
 - `src/tui/mod.rs` 仅组织模块和 re-export；TUI 业务状态分散在单一职责文件中。
+
+### 3.1 命令与 Skill 变更闭环
+
+任何结构化命令变化都必须按以下链路同步，禁止只改 clap 或 README：
+
+```mermaid
+flowchart LR
+    Args["clap 参数"] --> Request["CommandRequest"]
+    Request --> Executor["DefaultCommandExecutor"]
+    Executor --> Result["Result / Error / Warning / Stats"]
+    Result --> Capability["CapabilityManifest"]
+    Capability --> Schema["command schema"]
+    Schema --> Tests["unit + process tests"]
+    Tests --> Docs["中英文 README + 技术文档"]
+    Docs --> Skill["skills/xls-cli/SKILL.md"]
+    Skill --> Dist["OpenClaw / Hermes dist"]
+```
+
+Skill 源文件只能编辑 `skills/xls-cli/SKILL.md`。执行 `node scripts/sync-skills.js` 后，OpenClaw/Hermes 分发副本必须字节一致。Skill 的触发描述应覆盖读取、提取、查询、编辑、转换和 Markdown 任务；正文只保留 capability、dry-run、覆盖保护、warning、回读验证和错误处置等智能体真正需要的过程知识。
 
 ## 4. 协议与安全方案
 
@@ -175,6 +194,7 @@ stateDiagram-v2
 | 单元/进程 | `cargo test` | executor、协议、I/O、TUI logic | 104 unit + 3 process tests 通过；PTY 仍独立验证 |
 | JS | `node --check bin/xls.js` 等 | launcher 与辅助脚本 | 不能替代实际目标平台运行 |
 | 包 | `npm pack --dry-run --ignore-scripts` | 发布清单 | 不验证 native binary 本身 |
+| Skill | `quick_validate.py skills/xls-cli` + 分发副本比较 | frontmatter、命名、同步一致性 | 不替代真实 Agent 会话回放 |
 | 发布 | `.github/workflows/release.yml` | 八目标构建与 npm/GitHub 流程 | tag workflow 的运行记录才是发布证据 |
 
 建议把 protocol golden tests、fixture corpus 与 package smoke 分别作为 CI 的命名步骤，以便失败可以定位到协议、格式、TUI 或分发边界，而不是只得到一个总失败。
@@ -198,10 +218,11 @@ stateDiagram-v2
 - [x] 本地相邻 EasyExcel checkout 下 format、Clippy、tests 全绿；CI 仍需保存对应运行记录。
 - [ ] release 流水线对八个目标包都有实际 binary smoke、版本校验与 checksum。
 - [ ] TUI PTY 测试验证终端恢复，不把单元测试当作终端生命周期证据。
+- [ ] OpenClaw 与 Hermes 均完成“能力探测 → 提取数据”和“dry-run → 生成文件 → 回读验证”任务回放。
 
 ---
 
 **文档版本**：V1.0.0
 **创建日期**：2026-08-05
-**最后更新**：2026-08-05
+**最后更新**：2026-08-06
 **文档状态**：✅ 待评审
