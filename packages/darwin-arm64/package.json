@@ -5,6 +5,7 @@
   "license": "MIT OR Apache-2.0",
   "os": ["darwin"],
   "cpu": ["arm64"],
-  "files": ["bin/xls", "README.md"],
+  "files": ["bin/xls", "README.md", "LICENSE-APACHE", "LICENSE-MIT", "NOTICE"],
+  "repository": { "type": "git", "url": "https://github.com/easy-4-rust/xls-cli" },
   "publishConfig": { "access": "public" }
 }
