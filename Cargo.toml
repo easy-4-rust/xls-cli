@@ -22,7 +22,7 @@ path = "src/main.rs"
 [dependencies]
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
-easyexcel = { path = "../easyexcel-rust/crates/easyexcel", version = "0.1.0-alpha.1" }
+easyexcel = { path = "../easyexcel-rust/crates/easyexcel", version = "0.1.0" }
 regex = { version = "1", default-features = false, features = ["std", "unicode"] }
 ratatui = "0.30.2"
 crossterm = "0.29"
