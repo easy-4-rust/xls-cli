@@ -101,39 +101,33 @@ XLS_CLI_BINARY="$PWD/target/debug/xls" node bin/xls.js --version
 
 ### 安装 `xls-cli` Skill
 
-从仓库 checkout 安装到 OpenClaw 当前 workspace：
+使用通用 Skills CLI 直接从 GitHub 安装，无需 checkout 仓库，也无需手工复制文件：
 
 ```sh
-openclaw skills install ./skills/dist/openclaw/xls-cli --as xls-cli
-openclaw skills list
+npx skills add easy-4-rust/xls-cli
 ```
 
-安装为 OpenClaw 全局共享 Skill：
+非交互式安装到当前项目，或者安装为用户级全局 Skill：
 
 ```sh
-openclaw skills install ./skills/dist/openclaw/xls-cli --as xls-cli --global
-openclaw skills list
+npx skills add easy-4-rust/xls-cli --skill xls-cli --yes
+npx skills add easy-4-rust/xls-cli --skill xls-cli --global --yes
 ```
 
-Hermes Agent 从标准技能目录发现本地 Skill：
+如果不安装 Skill，而是希望直接得到一份可以交给智能体读取的完整提示词：
 
 ```sh
-mkdir -p "$HOME/.hermes/skills/spreadsheets/xls-cli"
-cp skills/dist/hermes/xls-cli/SKILL.md \
-  "$HOME/.hermes/skills/spreadsheets/xls-cli/SKILL.md"
-hermes skills list
+npx skills use easy-4-rust/xls-cli@xls-cli
 ```
 
-如果从全局 npm 包安装，先定位包目录，再使用其中的分发副本：
+能够读取 URL 的智能体，也可以直接读取规范 Skill 原文：
 
-```sh
-XLS_CLI_PACKAGE="$(npm root -g)/@partme.ai/xls-cli"
-openclaw skills install \
-  "$XLS_CLI_PACKAGE/skills/dist/openclaw/xls-cli" \
-  --as xls-cli --global
+```text
+处理电子表格文件前，请先读取并遵循这个 Skill：
+https://raw.githubusercontent.com/easy-4-rust/xls-cli/main/skills/xls-cli/SKILL.md
 ```
 
-安装后重新启动智能体会话，并让智能体执行 `xls capabilities --json`。Skill 不内嵌二进制，也不替代 npm/Cargo 安装。OpenClaw 的本地/全局 Skill 规则见[官方文档](https://docs.openclaw.ai/tools/skills)，Hermes 的技能目录和安装模型见[官方指南](https://github.com/NousResearch/hermes-agent/blob/main/website/docs/guides/work-with-skills.md)。
+安装后启动新的智能体会话，或让智能体重新加载 Skill 索引，然后执行 `xls --version` 和 `xls capabilities --json`。Skill 只负责教智能体安全调用，不内嵌 `xls` 二进制；二进制仍需单独安装或构建。仓库遵循 [Agent Skills 规范](https://agentskills.io/)，因此同一条命令可用于 Codex、Claude Code、Cursor、OpenCode、Gemini CLI、GitHub Copilot 及其他 Skills CLI 目标。
 
 ## 快速开始
 
@@ -441,7 +435,7 @@ JSON 模式下 stdout 只输出一个完整的结果或错误对象。成功结�
 
 ## Agent Skill
 
-Skill 源文件为 [skills/xls-cli/SKILL.md](skills/xls-cli/SKILL.md)，OpenClaw 与 Hermes 使用 `skills/dist/<agent>/xls-cli/` 中的分发副本。`node scripts/sync-skills.js` 是唯一同步入口，修改源 Skill 后必须运行并检查三个副本完全一致。
+规范 Skill 源文件为 [skills/xls-cli/SKILL.md](skills/xls-cli/SKILL.md)，Skills CLI 会直接从仓库发现它。`skills/dist/<agent>/xls-cli/` 下的 OpenClaw、Hermes 副本只是兼容性分发产物，不是推荐安装入口。维护者修改源 Skill 后使用 `node scripts/sync-skills.js` 保持这些副本一致。
 
 规定的写入序列是：
 

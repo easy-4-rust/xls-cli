@@ -81,19 +81,20 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-    Source["skills/xls-cli/SKILL.md<br/>唯一编辑源"] --> Sync["node scripts/sync-skills.js"]
+    Installer["npx skills add easy-4-rust/xls-cli"] --> Source["skills/xls-cli/SKILL.md<br/>规范源与推荐安装入口"]
+    Source --> Agent["Codex / Claude Code / OpenClaw<br/>Hermes / Cursor / 其他智能体"]
+    Source --> Sync["node scripts/sync-skills.js"]
     Sync --> OpenClaw["skills/dist/openclaw/xls-cli"]
     Sync --> Hermes["skills/dist/hermes/xls-cli"]
 
     Npm["npm install -g @partme.ai/xls-cli"] --> Binary["PATH 中的 xls"]
-    OpenClaw --> AgentA["OpenClaw Agent"]
-    Hermes --> AgentB["Hermes Agent"]
-    AgentA --> Binary
-    AgentB --> Binary
+    OpenClaw -. "兼容性分发" .-> Agent
+    Hermes -. "兼容性分发" .-> Agent
+    Agent --> Binary
     Binary --> Facade["easyexcel facade"]
 ```
 
-Skill 与二进制必须分别安装。Skill 只定义安全调用规约，不包含原生二进制、不解析工作簿，也不绕过 capability。OpenClaw 可使用 `openclaw skills install ... --as xls-cli` 安装 workspace/global 副本；Hermes 使用 `~/.hermes/skills/` 下的标准技能目录。安装后必须在新会话中同时验证 Skill 可见和 `xls capabilities --json` 可执行。
+Skill 与二进制必须分别安装。Skill 只定义安全调用规约，不包含原生二进制、不解析工作簿，也不绕过 capability。推荐使用 `npx skills add easy-4-rust/xls-cli` 从规范源完成安装；`skills/dist/` 仅保留 OpenClaw、Hermes 的兼容性分发副本。无需安装时，可用 `npx skills use easy-4-rust/xls-cli@xls-cli` 生成给智能体直接读取的完整提示词。安装后必须在新会话中同时验证 Skill 可见、`xls --version` 和 `xls capabilities --json` 可执行。
 
 ## 4. 运行流程与失败语义
 

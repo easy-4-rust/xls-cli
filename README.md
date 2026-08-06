@@ -103,39 +103,33 @@ The crate declares Rust edition 2024 and MSRV `1.88` in `Cargo.toml`.
 
 ### Install the `xls-cli` Skill
 
-Install from a repository checkout into the active OpenClaw workspace:
+Install the Skill directly from GitHub with the universal Skills CLI. No repository checkout or manual file copy is required:
 
 ```sh
-openclaw skills install ./skills/dist/openclaw/xls-cli --as xls-cli
-openclaw skills list
+npx skills add easy-4-rust/xls-cli
 ```
 
-Install it as a global OpenClaw Skill:
+For a non-interactive project install, or a global user-level install:
 
 ```sh
-openclaw skills install ./skills/dist/openclaw/xls-cli --as xls-cli --global
-openclaw skills list
+npx skills add easy-4-rust/xls-cli --skill xls-cli --yes
+npx skills add easy-4-rust/xls-cli --skill xls-cli --global --yes
 ```
 
-Hermes Agent discovers local Skills under its standard skill root:
+To give an agent the complete instructions without installing the Skill, generate an agent-ready prompt:
 
 ```sh
-mkdir -p "$HOME/.hermes/skills/spreadsheets/xls-cli"
-cp skills/dist/hermes/xls-cli/SKILL.md \
-  "$HOME/.hermes/skills/spreadsheets/xls-cli/SKILL.md"
-hermes skills list
+npx skills use easy-4-rust/xls-cli@xls-cli
 ```
 
-To install from the global npm package, resolve the package directory first:
+An agent that can read URLs may instead be given the canonical raw Skill directly:
 
-```sh
-XLS_CLI_PACKAGE="$(npm root -g)/@partme.ai/xls-cli"
-openclaw skills install \
-  "$XLS_CLI_PACKAGE/skills/dist/openclaw/xls-cli" \
-  --as xls-cli --global
+```text
+Read and follow this Skill before working with spreadsheet files:
+https://raw.githubusercontent.com/easy-4-rust/xls-cli/main/skills/xls-cli/SKILL.md
 ```
 
-Restart the agent session after installation and ask it to run `xls capabilities --json`. The Skill does not embed the binary and does not replace the npm/Cargo installation. See the official [OpenClaw Skills documentation](https://docs.openclaw.ai/tools/skills) and [Hermes Agent skill guide](https://github.com/NousResearch/hermes-agent/blob/main/website/docs/guides/work-with-skills.md) for discovery rules.
+Start a new agent session, or reload its Skill index, after installation. Then ask it to run `xls --version` and `xls capabilities --json`. The Skill teaches safe usage but does not embed the `xls` binary; install or build the binary separately. The repository layout follows the [Agent Skills specification](https://agentskills.io/), so the same command works with Codex, Claude Code, Cursor, OpenCode, Gemini CLI, GitHub Copilot, and other Skills CLI targets.
 
 ## Quick start
 
@@ -443,7 +437,7 @@ In JSON mode, stdout contains exactly one result or error object. Successful res
 
 ## Agent Skill
 
-The source Skill is [skills/xls-cli/SKILL.md](skills/xls-cli/SKILL.md). OpenClaw and Hermes consume copies under `skills/dist/<agent>/xls-cli/`. `node scripts/sync-skills.js` is the only synchronization entry point; after editing the source, run it and verify that all three copies match.
+The canonical source is [skills/xls-cli/SKILL.md](skills/xls-cli/SKILL.md), which the Skills CLI discovers directly from this repository. The copies under `skills/dist/<agent>/xls-cli/` are compatibility artifacts for OpenClaw and Hermes packaging, not the recommended installation path. Maintainers use `node scripts/sync-skills.js` to keep those copies identical to the source.
 
 Its required write sequence is:
 
