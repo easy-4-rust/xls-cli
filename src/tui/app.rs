@@ -9,9 +9,9 @@
 
 use std::path::PathBuf;
 
+use easyexcel::formula::Engine;
 use easyexcel::model::addr::col_index_to_letters;
 use easyexcel::model::{Cell, CellAddress, CellRange, Sheet, Workbook};
-use easyexcel_formula::Engine;
 
 use super::layout;
 use super::parse::{edit_seed, parse_input};
@@ -529,7 +529,7 @@ impl App {
         let mut changes = Vec::new();
         for (r, c) in sel.iter_cells() {
             if let Some(Cell::Text(s)) = self.wb.sheets[si].get(r, c)
-                && let Some(n) = easyexcel_formula::formula::coerce::parse_number_text(s)
+                && let Some(n) = easyexcel::formula::formula::coerce::parse_number_text(s)
             {
                 changes.push((r, c, Cell::Number(n)));
             }

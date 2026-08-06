@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::{CommandName, SchemaVersion};
+use crate::{CommandName, CommandWarning, SchemaVersion};
 
 /// 命令生成或计划生成的文件。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -27,7 +27,7 @@ pub struct CommandResult {
     /// 生成或计划生成的文件。
     pub files: Vec<GeneratedFile>,
     /// 非致命能力降级或兼容性提示。
-    pub warnings: Vec<String>,
+    pub warnings: Vec<CommandWarning>,
     /// 稳定的数值统计信息。
     pub stats: BTreeMap<String, u64>,
     /// 是否为 dry-run。

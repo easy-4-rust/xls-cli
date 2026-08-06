@@ -27,19 +27,19 @@ pub(crate) mod dates {
 }
 
 pub(crate) mod formula {
-    pub(crate) use easyexcel_formula::{CellRef, Engine};
+    pub(crate) use easyexcel::formula::{CellRef, Engine};
 
     pub(crate) mod coerce {
-        pub(crate) use easyexcel_formula::formula::coerce::parse_number_text;
+        pub(crate) use easyexcel::formula::formula::coerce::parse_number_text;
     }
 
     pub(crate) mod value {
-        pub(crate) use easyexcel_formula::Value;
+        pub(crate) use easyexcel::formula::Value;
     }
 }
 
 pub(crate) mod model {
-    pub(crate) use easyexcel_model::model::{Cell, DefinedName, Table, Workbook};
+    pub(crate) use easyexcel::model::model::{Cell, DefinedName, Table, Workbook};
 }
 
 pub(crate) mod query {
@@ -78,7 +78,7 @@ pub(crate) mod stream {
         match Format::from_path(path) {
             Some(Format::Xlsx) => {
                 let file = std::fs::File::open(path)?;
-                easyexcel_xlsx::stream(file, sheet, sink)
+                easyexcel::xlsx::stream(file, sheet, sink)
             }
             Some(Format::Csv) => {
                 let file = std::fs::File::open(path)?;
@@ -141,8 +141,8 @@ pub(crate) mod stream {
 /// 打开工作簿，并在需要时解密受密码保护的 XLSX。
 pub(crate) fn open_path_with_password(path: &Path, password: Option<&str>) -> Result<Workbook> {
     match Format::from_path(path).unwrap_or_else(|| sniff_format(path).unwrap_or(Format::Csv)) {
-        Format::Xlsx => easyexcel_xlsx::read_path_with_password(path, password),
-        Format::Xls => easyexcel_xls::read_path(path),
+        Format::Xlsx => easyexcel::xlsx::read_path_with_password(path, password),
+        Format::Xls => easyexcel::xls::read_path(path),
         Format::Csv => {
             let file = std::fs::File::open(path)?;
             let sheet_name = path
@@ -172,8 +172,8 @@ pub(crate) fn save_path(workbook: &Workbook, path: &Path) -> Result<()> {
     match Format::from_path(path).ok_or_else(|| {
         Error::Unsupported(format!("cannot determine format for {}", path.display()))
     })? {
-        Format::Xlsx => easyexcel_xlsx::write_path(workbook, path),
-        Format::Xls => easyexcel_xls::write_path(workbook, path),
+        Format::Xlsx => easyexcel::xlsx::write_path(workbook, path),
+        Format::Xls => easyexcel::xls::write_path(workbook, path),
         Format::Csv => {
             let file = std::fs::File::create(path)?;
             easyexcel::csv::write_csv(

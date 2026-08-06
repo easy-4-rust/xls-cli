@@ -1,4 +1,12 @@
-use crate::cli::{CellInput, CliOutputFormat, CommandName, CommandRequest, Commands, OutputFormat};
+use easyexcel::markdown::{
+    MarkdownConversionMode, MarkdownExportOptions, MarkdownFormulaPolicy, MarkdownImportOptions,
+    MarkdownMergePolicy, MarkdownSheetSelection, MarkdownTableSelection, MarkdownTypeInference,
+};
+
+use crate::cli::{
+    CellInput, CliMarkdownFormulaPolicy, CliMarkdownMergePolicy, CliMarkdownMode,
+    CliMarkdownTypeInference, CliOutputFormat, CommandName, CommandRequest, Commands, OutputFormat,
+};
 
 #[allow(
     clippy::too_many_lines,
@@ -153,15 +161,47 @@ pub(crate) fn into_request(command: Commands) -> Result<CommandRequest, String> 
         },
         Commands::Query { input, sql } => CommandRequest::Query { input, sql },
         Commands::Convert { input, output } => CommandRequest::Convert { input, output },
-        Commands::Import { input, output } => CommandRequest::Import { input, output },
+        Commands::Import {
+            input,
+            output,
+            table,
+            infer_types,
+        } => {
+            let mut options =
+                MarkdownImportOptions::default().with_type_inference(infer_types.into());
+            if let Some(table) = table {
+                options = options.with_tables(parse_table_selection(table));
+            }
+            CommandRequest::Import {
+                input,
+                output,
+                markdown_options: Some(options),
+            }
+        }
         Commands::Export {
             input,
             output,
             format,
+            mode,
+            stream,
+            sheet,
+            formula,
+            merge,
         } => CommandRequest::Export {
             input,
             output,
             output_format: format.into(),
+            markdown_options: Some(
+                MarkdownExportOptions::default()
+                    .with_mode(if stream {
+                        MarkdownConversionMode::Event
+                    } else {
+                        mode.into()
+                    })
+                    .with_sheets(sheet.map_or(MarkdownSheetSelection::All, parse_sheet_selection))
+                    .with_formulas(formula.into())
+                    .with_merges(merge.into()),
+            ),
         },
         Commands::Recalc { input, output } => CommandRequest::Recalc { input, output },
         Commands::Capabilities => CommandRequest::Capabilities,
@@ -178,6 +218,61 @@ pub(crate) fn into_request(command: Commands) -> Result<CommandRequest, String> 
             }
         }
     })
+}
+
+fn parse_sheet_selection(value: String) -> MarkdownSheetSelection {
+    value.parse::<usize>().map_or_else(
+        |_| MarkdownSheetSelection::Name(value),
+        MarkdownSheetSelection::Index,
+    )
+}
+
+fn parse_table_selection(value: String) -> MarkdownTableSelection {
+    value.parse::<usize>().map_or_else(
+        |_| MarkdownTableSelection::Name(value),
+        MarkdownTableSelection::Index,
+    )
+}
+
+impl From<CliMarkdownMode> for MarkdownConversionMode {
+    fn from(value: CliMarkdownMode) -> Self {
+        match value {
+            CliMarkdownMode::Auto => Self::Auto,
+            CliMarkdownMode::Event => Self::Event,
+            CliMarkdownMode::Workbook => Self::Workbook,
+        }
+    }
+}
+
+impl From<CliMarkdownFormulaPolicy> for MarkdownFormulaPolicy {
+    fn from(value: CliMarkdownFormulaPolicy) -> Self {
+        match value {
+            CliMarkdownFormulaPolicy::Cached => Self::CachedValue,
+            CliMarkdownFormulaPolicy::Expression => Self::Expression,
+            CliMarkdownFormulaPolicy::Both => Self::ExpressionAndCached,
+        }
+    }
+}
+
+impl From<CliMarkdownMergePolicy> for MarkdownMergePolicy {
+    fn from(value: CliMarkdownMergePolicy) -> Self {
+        match value {
+            CliMarkdownMergePolicy::Anchor => Self::AnchorWithWarning,
+            CliMarkdownMergePolicy::Repeat => Self::RepeatAnchor,
+            CliMarkdownMergePolicy::Html => Self::HtmlFallback,
+            CliMarkdownMergePolicy::Error => Self::Error,
+        }
+    }
+}
+
+impl From<CliMarkdownTypeInference> for MarkdownTypeInference {
+    fn from(value: CliMarkdownTypeInference) -> Self {
+        match value {
+            CliMarkdownTypeInference::Text => Self::Text,
+            CliMarkdownTypeInference::Conservative => Self::Conservative,
+            CliMarkdownTypeInference::Aggressive => Self::Aggressive,
+        }
+    }
 }
 
 impl From<CliOutputFormat> for OutputFormat {

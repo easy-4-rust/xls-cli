@@ -11,9 +11,11 @@ mod command_executor;
 mod command_name;
 mod command_request;
 mod command_result;
+mod command_warning;
 mod default_command_executor;
 mod easyexcel_components;
 mod execution_context;
+mod markdown_capability;
 mod output_format;
 mod query;
 mod render;
@@ -26,7 +28,10 @@ mod stream;
 mod terminal;
 mod workbook_io;
 
-pub(crate) use args::{Cli, CliOutputFormat, Commands};
+pub(crate) use args::{
+    Cli, CliMarkdownFormulaPolicy, CliMarkdownMergePolicy, CliMarkdownMode,
+    CliMarkdownTypeInference, CliOutputFormat, Commands,
+};
 pub use capability_manifest::{CapabilityManifest, CapabilityStatus, CommandCapability};
 pub use cell_input::CellInput;
 pub use command_error::{CommandError, ErrorCode};
@@ -34,9 +39,11 @@ pub use command_executor::CommandExecutor;
 pub use command_name::CommandName;
 pub use command_request::CommandRequest;
 pub use command_result::{CommandResult, GeneratedFile};
+pub use command_warning::CommandWarning;
 pub use default_command_executor::DefaultCommandExecutor;
 pub use easyexcel::io::ResourceLimits;
 pub use execution_context::{ExecutionContext, ExecutionMode, OverwritePolicy, SecretString};
+pub use markdown_capability::MarkdownCapability;
 pub use output_format::OutputFormat;
 pub(crate) use request::into_request;
 pub use runner::main;

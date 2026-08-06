@@ -27,7 +27,7 @@
 
 | 视图 | 结论 |
 |:---|:---|
-| 当前实现 | 一个 Rust 2024 crate（`xls-cli`），提供 `xls` binary；结构化命令、迁移终端命令和 TUI 共用 EasyExcel-Rust 组件。Cargo path dependency 要求相邻的 `easyexcel-rust` checkout。 |
+| 当前实现 | 一个 Rust 2024 crate（`xls-cli`），提供 `xls` binary；结构化命令、迁移终端命令和 TUI 只依赖 `easyexcel` 门面。Cargo path dependency 要求相邻的 `easyexcel-rust` checkout。 |
 | 当前事实 | capability manifest 标记 22 个命令为 `supported`，并标记一批迁移终端命令为 `partial`；本地 debug binary 已返回 schema `1.0` 的 manifest。 |
 | 目标状态 | 所有对智能体公开的命令具备明确定义的 JSON request/result/schema、限制、错误模型、测试和成功/失败语义；人类终端命令可继续独立演进。 |
 | 平台边界 | 工作簿模型、文件格式解析、公式引擎及流式 I/O 归 EasyExcel 组件所有；`xls-cli` 不重定义这些基础模型。 |
@@ -43,7 +43,7 @@ flowchart LR
     R --> P["结构化协议\nCommandRequest / Executor / Result"]
     R --> T["迁移终端命令\nterminal.rs"]
     R --> U["交互式 TUI\ntui::runtime"]
-    P --> E["EasyExcel facade / foundation crates"]
+    P --> E["easyexcel facade"]
     T --> E
     U --> E
     E --> F["本地工作簿文件"]
@@ -57,13 +57,13 @@ flowchart LR
 | Runner | `clap` 解析、TUI/终端/结构化路由、JSON 或人类渲染、退出码 | 工作簿操作实现 | `src/cli/runner.rs` |
 | Request/Executor | 将 CLI 参数映射为类型化请求，执行 supported 命令 | 进程输出与参数解析 | `src/cli/request.rs`、`default_command_executor.rs` |
 | Protocol model | 版本化 request/result、错误码、capability 与 schema | 旧命令的虚假兼容 | `command_request.rs`、`command_result.rs`、`command_error.rs`、`schema.rs` |
-| I/O policy | 格式识别、限制、目标校验、原子写入 | UI 会话状态 | `workbook_io.rs` |
+| I/O policy | 格式识别、限制、目标校验、原子写入；Markdown 委托 `easyexcel::markdown` | UI 会话状态和 Markdown codec | `workbook_io.rs` |
 | Terminal adapter | 为迁移命令保留人类终端行为并施加新 guardrail | 承诺 JSON 成功 | `terminal.rs`、`easyexcel_components.rs` |
 | TUI | 工作簿会话、键鼠事件、编辑状态、呈现、终端恢复 | 脚本协议 | `src/tui/*` |
 | npm launcher | 按平台选择已安装 native package，传递退出码 | 网络下载和 JIT 编译 | `bin/xls.js`、`bin/platform.js`、`install.js` |
 | Skill | 编排安全调用序列 | 重实现解析或修改工作簿 | `skills/xls-cli/SKILL.md` |
 
-依赖方向必须维持为：`cli`、`tui` → EasyExcel facade/foundation；npm 与 Skill → `xls` binary。不得恢复 `xls-cli` 对旧 `xls` fork 的生产依赖。
+依赖方向必须维持为：`cli`、`tui` → `easyexcel` facade；npm 与 Skill → `xls` binary。不得恢复 `xls-cli` 对旧 `xls` fork 或 `easyexcel-*` 基础 crate 的直接生产依赖。
 
 ## 4. 运行流程与失败语义
 
@@ -164,8 +164,8 @@ flowchart LR
 | 层面 | 通过条件 | 当前证据/待补证据 |
 |:---|:---|:---|
 | 协议 | `capabilities --json` 可解析；成功/错误 stdout-only | 已本地执行 manifest；`tests/cli_protocol.rs` 覆盖 success、unsupported、import→get |
-| 安全写入 | dry-run 不生成文件，apply 后可重开 | process 测试覆盖 Markdown import 链路；需持续增加 XLS/XLSX/CSV fixture |
-| 代码质量 | format、Clippy、all-target tests 都在隔离依赖树通过 | 本次 `cargo fmt --all` 会进入相邻依赖工作树并被其未格式化文件阻断；须在干净依赖 checkout 的 CI 上确认总门禁 |
+| 安全写入 | dry-run 不生成文件，apply 后可重开 | process 测试覆盖 Markdown import 链路；EasyExcel 端到端测试覆盖 XLS/XLSX/CSV 双向投影 |
+| 代码质量 | format、Clippy、all-target tests 都通过 | 2026-08-06 本地相邻 checkout：104 unit + 3 process tests、全特性 Clippy 通过 |
 | npm | JS 语法与打包清单可通过 | 本次 `node --check` 和 `npm pack --dry-run --ignore-scripts` 已通过 |
 | TUI | PTY 打开、编辑、保存、退出并恢复终端 | 架构需要该 smoke；本次未重新运行 PTY 测试 |
 

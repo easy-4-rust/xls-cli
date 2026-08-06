@@ -1,19 +1,24 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use easyexcel::formula::Engine;
+use easyexcel::markdown::{
+    MarkdownConversionReport, MarkdownExportOptions, MarkdownImportOptions, MarkdownWarningCode,
+};
 use easyexcel::model::{CellRange, Workbook};
-use easyexcel_formula::Engine;
-use easyexcel_tabular::TabularDocument;
+use easyexcel::tabular::{TabularDocument, TabularFormat};
 use serde_json::{Value, json};
 
 use crate::cli::query::run_query;
 use crate::cli::selection::{cell_value_json, render_selection, resolve_selection};
 use crate::cli::workbook_io::{
-    detect_tabular_format, mutation_target, open_workbook, save_workbook, write_text,
+    detect_tabular_format, export_markdown, import_markdown, mutation_target, open_workbook,
+    save_workbook, write_text,
 };
 use crate::{
     CapabilityManifest, CommandError, CommandExecutor, CommandName, CommandRequest, CommandResult,
-    ErrorCode, ExecutionContext, ExecutionMode, GeneratedFile, OutputFormat, command_schema,
+    CommandWarning, ErrorCode, ExecutionContext, ExecutionMode, GeneratedFile, OutputFormat,
+    command_schema,
 };
 
 /// 无状态的默认命令执行器。
@@ -223,12 +228,17 @@ impl CommandExecutor for DefaultCommandExecutor {
             }),
             CommandRequest::Query { input, sql } => query(&input, &sql, context),
             CommandRequest::Convert { input, output } => convert(&input, &output, context),
-            CommandRequest::Import { input, output } => import(&input, &output, context),
+            CommandRequest::Import {
+                input,
+                output,
+                markdown_options,
+            } => import(&input, &output, markdown_options, context),
             CommandRequest::Export {
                 input,
                 output,
                 output_format,
-            } => export(&input, &output, output_format, context),
+                markdown_options,
+            } => export(&input, &output, output_format, markdown_options, context),
             CommandRequest::Recalc { input, output } => {
                 mutate(&input, output, context, command, |workbook| {
                     let report = Engine::new().recalc(workbook);
@@ -477,7 +487,10 @@ fn convert(
     if output.extension().and_then(|value| value.to_str()) == Some("csv")
         && workbook.sheets.len() > 1
     {
-        result.warnings.push("CSV 只能保存第一个工作表".to_owned());
+        result.warnings.push(CommandWarning::new(
+            "CSV_FIRST_SHEET_ONLY",
+            "CSV 只能保存第一个工作表",
+        ));
     }
     result.files.push(GeneratedFile {
         path: output.to_path_buf(),
@@ -489,9 +502,26 @@ fn convert(
 fn import(
     input: &Path,
     output: &Path,
+    markdown_options: Option<MarkdownImportOptions>,
     context: &ExecutionContext,
 ) -> Result<CommandResult, CommandError> {
     let format = detect_tabular_format(input)?;
+    if format == TabularFormat::Markdown {
+        let (written, report) = import_markdown(
+            input,
+            output,
+            &markdown_options.unwrap_or_default(),
+            context,
+        )?;
+        return Ok(markdown_result(
+            CommandName::Import,
+            input,
+            output,
+            written,
+            report,
+            context,
+        ));
+    }
     let document_text = fs::read_to_string(input).map_err(|error| {
         CommandError::new(
             ErrorCode::ReadFailed,
@@ -499,7 +529,7 @@ fn import(
         )
         .with_diagnostic(error.to_string())
     })?;
-    let document = easyexcel_tabular::parse_document(&document_text, format).map_err(|error| {
+    let document = easyexcel::tabular::parse_document(&document_text, format).map_err(|error| {
         CommandError::new(ErrorCode::ReadFailed, "表格文档解析失败")
             .with_diagnostic(error.to_string())
     })?;
@@ -521,14 +551,31 @@ fn export(
     input: &Path,
     output: &Path,
     output_format: OutputFormat,
+    markdown_options: Option<MarkdownExportOptions>,
     context: &ExecutionContext,
 ) -> Result<CommandResult, CommandError> {
+    if output_format == OutputFormat::Markdown {
+        let (written, report) = export_markdown(
+            input,
+            output,
+            &markdown_options.unwrap_or_default(),
+            context,
+        )?;
+        return Ok(markdown_result(
+            CommandName::Export,
+            input,
+            output,
+            written,
+            report,
+            context,
+        ));
+    }
     let workbook = open_workbook(input, context)?;
     let document = TabularDocument::from_workbook(&workbook);
     let rendered_text = match output_format {
-        OutputFormat::Markdown => easyexcel_tabular::render_markdown(&document),
-        OutputFormat::Html => easyexcel_tabular::render_html(&document),
-        OutputFormat::Json => easyexcel_tabular::render_json(&document),
+        OutputFormat::Markdown => unreachable!("Markdown 已由 easyexcel::markdown 处理"),
+        OutputFormat::Html => easyexcel::tabular::render_html(&document),
+        OutputFormat::Json => easyexcel::tabular::render_json(&document),
         OutputFormat::Csv | OutputFormat::Tsv => {
             let selection = resolve_selection(&workbook, None, None)?;
             render_selection(&workbook, &selection, output_format)
@@ -548,6 +595,65 @@ fn export(
         written,
     });
     Ok(result)
+}
+
+fn markdown_result(
+    command: CommandName,
+    input: &Path,
+    output: &Path,
+    written: bool,
+    report: MarkdownConversionReport,
+    context: &ExecutionContext,
+) -> CommandResult {
+    let mut result = CommandResult::new(
+        command,
+        json!({
+            "input": input,
+            "output": output,
+            "mode": report.mode_used,
+            "tables": report.tables_processed,
+        }),
+        is_dry_run(context),
+    );
+    result.files.push(GeneratedFile {
+        path: output.to_path_buf(),
+        written,
+    });
+    result
+        .stats
+        .insert("sheets".to_owned(), report.sheets_processed as u64);
+    result
+        .stats
+        .insert("tables".to_owned(), report.tables_processed as u64);
+    result
+        .stats
+        .insert("rows".to_owned(), report.rows_processed);
+    result
+        .stats
+        .insert("cells".to_owned(), report.cells_processed);
+    result
+        .stats
+        .insert("output_bytes".to_owned(), report.output_bytes);
+    result
+        .warnings
+        .extend(report.warnings.into_iter().map(|warning| CommandWarning {
+            code: markdown_warning_code(warning.code).to_owned(),
+            message: warning.message,
+            sheet: warning.sheet,
+            range: warning.range,
+        }));
+    result
+}
+
+const fn markdown_warning_code(code: MarkdownWarningCode) -> &'static str {
+    match code {
+        MarkdownWarningCode::MergeFlattened => "MERGE_FLATTENED",
+        MarkdownWarningCode::MergeMetadataUnavailable => "MERGE_METADATA_UNAVAILABLE",
+        MarkdownWarningCode::HiddenSheetSkipped => "HIDDEN_SHEET_SKIPPED",
+        MarkdownWarningCode::StyleDropped => "STYLE_DROPPED",
+        MarkdownWarningCode::UnsupportedObjectDropped => "UNSUPPORTED_OBJECT_DROPPED",
+        MarkdownWarningCode::EmptySheet => "EMPTY_SHEET",
+    }
 }
 
 fn validate_sheet_name(

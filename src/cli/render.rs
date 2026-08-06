@@ -286,12 +286,12 @@ pub fn render_range(wb: &Workbook, sheet_idx: usize, range: CellRange, opts: &Re
 /// array-returning `eval`). Honors the text/json/md formats; `header` is not
 /// applied (array results have no header row).
 pub fn render_value_grid(
-    data: &[easyexcel_formula::Value],
+    data: &[easyexcel::formula::Value],
     rows: usize,
     cols: usize,
     opts: &ReadOpts,
 ) -> String {
-    use easyexcel_formula::Value;
+    use easyexcel::formula::Value;
 
     let at = |r: usize, c: usize| -> &Value { &data[r * cols + c] };
     let as_string = |v: &Value| -> String {

@@ -2,7 +2,7 @@
 name = "xls-cli"
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.94"
+rust-version = "1.88"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/easy-4-rust/xls-cli"
 homepage = "https://github.com/easy-4-rust/xls-cli"
@@ -22,12 +22,7 @@ path = "src/main.rs"
 [dependencies]
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
-easyexcel = { path = "../easyexcel-rust/easyexcel", version = "0.1.0-alpha.1" }
-easyexcel-model = { path = "../easyexcel-rust/crates/easyexcel-model", version = "0.1.0-alpha.1" }
-easyexcel-formula = { path = "../easyexcel-rust/crates/easyexcel-formula", version = "0.1.0-alpha.1" }
-easyexcel-tabular = { path = "../easyexcel-rust/crates/easyexcel-tabular", version = "0.1.0-alpha.1" }
-easyexcel-xls = { path = "../easyexcel-rust/crates/easyexcel-xls", version = "0.1.0-alpha.1" }
-easyexcel-xlsx = { path = "../easyexcel-rust/crates/easyexcel-xlsx", version = "0.1.0-alpha.1" }
+easyexcel = { path = "../easyexcel-rust/crates/easyexcel", version = "0.1.0-alpha.1" }
 regex = { version = "1", default-features = false, features = ["std", "unicode"] }
 ratatui = "0.29"
 crossterm = "0.28"

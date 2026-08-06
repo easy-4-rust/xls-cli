@@ -19,8 +19,8 @@ English documentation: [README.md](README.md)。设计与实施依据见[架构�
 
 | 需求 | xls-cli 提供的能力 | 责任边界 |
 |:---|:---|:---|
-| 新旧电子表格 | 读取和写入 XLS（BIFF8）、XLSX（OOXML）和 CSV | 格式语义由 EasyExcel-Rust 基础 crate 负责。 |
-| 真实公式 | 词法/语法解析、依赖重算、循环引用检测、动态数组和 `LAMBDA` 系列函数 | `easyexcel-formula` 负责求值；`xls-cli` 暴露 `recalc` 和迁移终端 `eval`。 |
+| 新旧电子表格 | 读取和写入 XLS（BIFF8）、XLSX（OOXML）和 CSV | `xls-cli` 只依赖 `easyexcel` 门面；格式引擎保持为 EasyExcel-Rust 内部实现。 |
+| 真实公式 | 词法/语法解析、依赖重算、循环引用检测、动态数组和 `LAMBDA` 系列函数 | `easyexcel::formula` 负责求值；`xls-cli` 暴露 `recalc` 和迁移终端 `eval`。 |
 | 往返编辑 | 单元格、样式、数字格式、合并、冻结窗格、名称和表格 | 保真度取决于格式，生成后必须重新打开验证。 |
 | 智能体安全自动化 | 版本化 JSON、能力探测、稳定错误、dry-run、资源限制和显式覆盖 | 结构化协议归 `src/cli` 所有；`partial` 终端命令不属于该契约。 |
 | 人类电子表格操作 | 同一原生二进制中的鼠标感知、Vim 风格 TUI | TUI 状态只存在于当前进程和文件会话。 |
@@ -93,7 +93,7 @@ cargo build
 XLS_CLI_BINARY="$PWD/target/debug/xls" node bin/xls.js --version
 ```
 
-`Cargo.toml` 声明 Rust edition 2024 与 MSRV `1.94`。
+`Cargo.toml` 声明 Rust edition 2024 与 MSRV `1.88`。
 
 ## 快速开始
 
@@ -111,7 +111,16 @@ xls query report.xlsx 'SELECT category, SUM(amount) AS total FROM Sheet1 GROUP B
 xls import tables.md generated.xlsx --dry-run --json
 xls import tables.md generated.xlsx --json
 xls info generated.xlsx --json
-xls get generated.xlsx 'Table1!A1:F20' --json
+xls get generated.xlsx 'Sales!A1:F20' --json
+```
+
+通过 EasyExcel Markdown 投影层导出 XLS/XLSX/CSV：
+
+```sh
+xls export report.xlsx report.md --format markdown \
+  --mode auto --formula cached --merge anchor --json
+xls import tables.md generated.xlsx \
+  --infer-types conservative --json
 ```
 
 打开交互式 TUI：
@@ -286,11 +295,11 @@ stateDiagram-v2
 | 编辑 | 光标、范围选择、公式、剪贴板、撤销/重做、查找/跳转、工作表标签、滚动条、冻结窗格和列宽拖动均属于已迁移 TUI 能力。 |
 | 保存 | 只有交互用户明确触发保存时，才通过统一 Workbook I/O 策略替换关联路径。 |
 | 终端恢复 | 正常退出和 panic 均恢复 raw mode、备用屏幕和鼠标捕获。 |
-| 公式状态 | TUI 打开工作簿时通过 `easyexcel_formula::Engine` 重算公式缓存。 |
+| 公式状态 | TUI 打开工作簿时通过 `easyexcel::formula::Engine` 重算公式缓存。 |
 
 ## Rust Library 边界
 
-旧项目将工作簿内部能力公开为 `xls::core`。该责任现在属于 EasyExcel-Rust 各组件 crate；`xls-cli` Library 公开的是稳定应用边界：类型化请求、执行上下文、能力清单、结果/错误类型与可复用 executor。
+旧项目将工作簿内部能力公开为 `xls::core`。该责任现在收口在 `easyexcel` 门面之后；`xls-cli` Library 公开的是稳定应用边界：类型化请求、执行上下文、能力清单、结果/错误类型与可复用 executor。
 
 ```rust
 use xls_cli::{
@@ -338,7 +347,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 | XLS（BIFF8） | ✅ | ✅ | 原生 Rust 读写器；受格式约束时公式输出可能依赖缓存值。 |
 | CSV | ✅ | ✅ | EasyExcel CSV 组件提供分隔符探测、BOM/编码处理和标量类型推断。 |
 | TSV | 终端/文本输入家族 | ✅ 导出 | 主要作为表格文本输出，不是工作簿容器。 |
-| Markdown | ✅ 导入 | ✅ 导出 | 表格映射为工作表，多张表可创建多个工作表。 |
+| Markdown | ✅ 导入 | ✅ 导出 | 默认 `AgentStable`；最近 heading 命名工作表，`007` 保持文本，公式/合并按策略处理并报告 warning。XLSX/CSV 可流式导出，XLS 仅 Workbook Mode。 |
 | 静态 HTML | ✅ 导入 | ✅ 导出 | 仅解析本地 `<table>`，不执行脚本、远程资源或不受控 CSS。 |
 | JSON 表格 | ✅ 导入 | ✅ 导出 | 用于结构化表格交换，不是内部 Workbook 序列化格式。 |
 
@@ -395,8 +404,10 @@ npm pack --dry-run --ignore-scripts
 
 ## 来源与许可证
 
-CLI/TUI 从 Easy4Rust 的 `xls` fork 迁移，并接入 EasyExcel-Rust 组件；迁移范围见上文“迁移源码覆盖”。许可证为 [MIT](LICENSE-MIT) 或 [Apache-2.0](LICENSE-APACHE)；来源和第三方说明见 [NOTICE](NOTICE)。
+CLI/TUI 从 Easy4Rust 的 `xls` fork 迁移，并只接入 `easyexcel` 门面；迁移范围见上文“迁移源码覆盖”。许可证为 [MIT](LICENSE-MIT) 或 [Apache-2.0](LICENSE-APACHE)；来源和第三方说明见 [NOTICE](NOTICE)。
 
 ### 历史迁移验证快照
 
 迁移交接在 2026-08-05 记录了格式化、Clippy、106 项 Rust 测试、CLI/TUI 冒烟和 8 个 npm 平台包版本检查均通过。这是当时的迁移证据，不表示不同本地依赖 checkout 的当前状态；当前验证应执行“开发与发布”章节中的命令。
+
+本次 Markdown 收口变更于 2026-08-06 通过 104 项 library 测试、3 项进程协议测试、全特性 Clippy、capabilities 与 export schema 验证。

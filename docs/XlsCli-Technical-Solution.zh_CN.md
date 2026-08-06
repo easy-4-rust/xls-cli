@@ -35,10 +35,10 @@
 
 | 领域 | 决策 | 源码/清单证据 | 选型理由 |
 |:---|:---|:---|:---|
-| 语言与工具链 | Rust edition 2024，MSRV 1.94 | `Cargo.toml` | 用单二进制承载 CLI 与 TUI |
+| 语言与工具链 | Rust edition 2024，MSRV 1.88 | `Cargo.toml` | 与 EasyExcel workspace 对齐，用单二进制承载 CLI 与 TUI |
 | 参数解析 | `clap` derive | `src/cli/args.rs` | 保持命令面、帮助和全局 guardrail 统一 |
 | 序列化 | `serde` / `serde_json` | `command_request.rs`、`command_result.rs` | 可版本化并适配智能体调用 |
-| 电子表格能力 | EasyExcel facade + foundation crates | `Cargo.toml`、`easyexcel_components.rs` | 单一格式/模型/公式权威 |
+| 电子表格能力 | 仅依赖 `easyexcel` facade | `Cargo.toml`、`easyexcel_components.rs` | 基础 crate 对产品层隐藏，保持单一格式/模型/公式权威 |
 | TUI | `ratatui` + `crossterm` + `tui-textarea` | `Cargo.toml`、`src/tui/*` | 终端渲染与原始模式生命周期可控 |
 | npm 分发 | JS launcher + optional native packages | `package.json`、`bin/platform.js` | 保留 npm 使用体验，不携带运行时下载器 |
 | 错误 | `thiserror` + stable `ErrorCode` | `command_error.rs` | 区分可处理错误、避免字符串匹配 |
@@ -170,9 +170,9 @@ stateDiagram-v2
 
 | 门禁 | 命令/载体 | 覆盖对象 | 当前限制 |
 |:---|:---|:---|:---|
-| 格式 | `cargo fmt --check` | Rust 源码格式 | 本地 path dependency 脏工作树可能让 workspace 格式检查越界失败 |
-| 静态检查 | `cargo clippy --all-targets` | Rust lint | CI 应使用隔离依赖 checkout |
-| 单元/进程 | `cargo test --all-targets` | executor、协议、I/O、TUI logic | 需补完资源/失败/PTy 覆盖 |
+| 格式 | `cargo fmt --check` | Rust 源码格式 | 2026-08-06 本地通过 |
+| 静态检查 | `cargo clippy --all-targets --all-features -- -D warnings` | Rust lint | 2026-08-06 本地通过 |
+| 单元/进程 | `cargo test` | executor、协议、I/O、TUI logic | 104 unit + 3 process tests 通过；PTY 仍独立验证 |
 | JS | `node --check bin/xls.js` 等 | launcher 与辅助脚本 | 不能替代实际目标平台运行 |
 | 包 | `npm pack --dry-run --ignore-scripts` | 发布清单 | 不验证 native binary 本身 |
 | 发布 | `.github/workflows/release.yml` | 八目标构建与 npm/GitHub 流程 | tag workflow 的运行记录才是发布证据 |
@@ -195,7 +195,7 @@ stateDiagram-v2
 - [ ] 运行时 manifest 与文档中的 supported/partial 口径一致。
 - [ ] 每个 structured 写命令都有 dry-run、写入、回读、覆盖拒绝与失败样例。
 - [ ] 所有 partial 命令的 `--json` 都稳定返回 `UNSUPPORTED_COMMAND`，直到正式提升。
-- [ ] CI 使用干净的 EasyExcel path dependency checkout，format、Clippy、tests 全绿。
+- [x] 本地相邻 EasyExcel checkout 下 format、Clippy、tests 全绿；CI 仍需保存对应运行记录。
 - [ ] release 流水线对八个目标包都有实际 binary smoke、版本校验与 checksum。
 - [ ] TUI PTY 测试验证终端恢复，不把单元测试当作终端生命周期证据。
 

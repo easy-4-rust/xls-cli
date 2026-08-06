@@ -195,14 +195,38 @@ pub(crate) enum Commands {
     Query { input: PathBuf, sql: String },
     /// 在 XLS、XLSX、CSV 之间转换。
     Convert { input: PathBuf, output: PathBuf },
-    /// 将 Markdown、HTML 或 JSON 表格导入 XLS/XLSX。
-    Import { input: PathBuf, output: PathBuf },
+    /// 将 Markdown、HTML 或 JSON 表格导入 XLS/XLSX/CSV。
+    Import {
+        input: PathBuf,
+        output: PathBuf,
+        /// Markdown 表名或零基下标。
+        #[arg(long)]
+        table: Option<String>,
+        /// Markdown 单元格类型推断策略。
+        #[arg(long, value_enum, default_value_t = CliMarkdownTypeInference::Conservative)]
+        infer_types: CliMarkdownTypeInference,
+    },
     /// 将工作簿导出为 Markdown、HTML、JSON、CSV 或 TSV。
     Export {
         input: PathBuf,
         output: PathBuf,
         #[arg(long, value_enum)]
         format: CliOutputFormat,
+        /// Markdown 导出执行模式。
+        #[arg(long, value_enum, default_value_t = CliMarkdownMode::Auto)]
+        mode: CliMarkdownMode,
+        /// `--mode event` 的兼容别名。
+        #[arg(long, conflicts_with = "mode")]
+        stream: bool,
+        /// Markdown 工作表名或零基下标。
+        #[arg(long)]
+        sheet: Option<String>,
+        /// Markdown 公式投影策略。
+        #[arg(long, value_enum, default_value_t = CliMarkdownFormulaPolicy::Cached)]
+        formula: CliMarkdownFormulaPolicy,
+        /// Markdown 合并单元格投影策略。
+        #[arg(long, value_enum, default_value_t = CliMarkdownMergePolicy::Anchor)]
+        merge: CliMarkdownMergePolicy,
     },
     /// 重算公式缓存。
     Recalc {
@@ -232,4 +256,41 @@ pub(crate) enum CliOutputFormat {
     #[value(alias = "md")]
     Markdown,
     Html,
+}
+
+/// Markdown 导出执行模式。
+#[derive(Debug, Clone, Copy, Default, ValueEnum)]
+pub(crate) enum CliMarkdownMode {
+    #[default]
+    Auto,
+    Event,
+    Workbook,
+}
+
+/// Markdown 公式投影策略。
+#[derive(Debug, Clone, Copy, Default, ValueEnum)]
+pub(crate) enum CliMarkdownFormulaPolicy {
+    #[default]
+    Cached,
+    Expression,
+    Both,
+}
+
+/// Markdown 合并单元格投影策略。
+#[derive(Debug, Clone, Copy, Default, ValueEnum)]
+pub(crate) enum CliMarkdownMergePolicy {
+    #[default]
+    Anchor,
+    Repeat,
+    Html,
+    Error,
+}
+
+/// Markdown 导入类型推断策略。
+#[derive(Debug, Clone, Copy, Default, ValueEnum)]
+pub(crate) enum CliMarkdownTypeInference {
+    Text,
+    #[default]
+    Conservative,
+    Aggressive,
 }

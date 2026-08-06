@@ -19,8 +19,8 @@ npm launcher ┘          └──> interactive TUI ────> EasyExcel com
 
 | Requirement | What xls-cli provides | Ownership boundary |
 |:---|:---|:---|
-| Legacy and modern spreadsheets | Read and write XLS (BIFF8), XLSX (OOXML), and CSV | Format semantics live in EasyExcel-Rust foundation crates. |
-| Real formulas | Lexer/parser, dependency-aware recalculation, circular-reference detection, dynamic arrays, and `LAMBDA`-family functions | `easyexcel-formula` owns evaluation; `xls-cli` exposes `recalc` and the migrated terminal `eval`. |
+| Legacy and modern spreadsheets | Read and write XLS (BIFF8), XLSX (OOXML), and CSV | `xls-cli` depends only on the `easyexcel` facade; format engines stay internal to EasyExcel-Rust. |
+| Real formulas | Lexer/parser, dependency-aware recalculation, circular-reference detection, dynamic arrays, and `LAMBDA`-family functions | `easyexcel::formula` owns evaluation; `xls-cli` exposes `recalc` and the migrated terminal `eval`. |
 | Round-trip editing | Cells, styles, number formats, merges, frozen panes, names, and tables | Fidelity is format-dependent and must be checked by reopening the generated file. |
 | Agent-safe automation | Versioned JSON, capability discovery, stable errors, dry-run, resource limits, and explicit overwrite | The structured protocol is owned by `src/cli`; `partial` terminal commands are outside that contract. |
 | Human spreadsheet work | A mouse-aware, vim-flavored TUI in the same native binary | TUI state is local to one process and file session. |
@@ -95,7 +95,7 @@ cargo build
 XLS_CLI_BINARY="$PWD/target/debug/xls" node bin/xls.js --version
 ```
 
-The crate declares Rust edition 2024 and MSRV `1.94` in `Cargo.toml`.
+The crate declares Rust edition 2024 and MSRV `1.88` in `Cargo.toml`.
 
 ## Quick start
 
@@ -113,7 +113,16 @@ Create a workbook from a Markdown table without replacing an existing file:
 xls import tables.md generated.xlsx --dry-run --json
 xls import tables.md generated.xlsx --json
 xls info generated.xlsx --json
-xls get generated.xlsx 'Table1!A1:F20' --json
+xls get generated.xlsx 'Sales!A1:F20' --json
+```
+
+Export XLS/XLSX/CSV through EasyExcel's Markdown projection layer:
+
+```sh
+xls export report.xlsx report.md --format markdown \
+  --mode auto --formula cached --merge anchor --json
+xls import tables.md generated.xlsx \
+  --infer-types conservative --json
 ```
 
 Open a workbook in the interactive TUI:
@@ -288,11 +297,11 @@ stateDiagram-v2
 | Editing | Cursor, range selection, formulas, clipboard, undo/redo, find/go-to, sheet tabs, scrollbars, frozen panes, and column resizing are part of the migrated TUI surface. |
 | Saving | The interactive user explicitly triggers save; the associated path is then replaced through the unified workbook I/O policy. |
 | Terminal recovery | Normal exit and panic handling restore raw mode, alternate screen, and mouse capture. |
-| Formula state | The TUI recalculates workbook formula caches on open through `easyexcel_formula::Engine`. |
+| Formula state | The TUI recalculates workbook formula caches on open through `easyexcel::formula::Engine`. |
 
 ## Rust library boundary
 
-The old project exposed workbook internals as `xls::core`. That responsibility now belongs to the EasyExcel-Rust crates. The `xls-cli` library instead exposes the stable application boundary: typed requests, execution context, capability manifest, result/error types, and the reusable executor.
+The old project exposed workbook internals as `xls::core`. That responsibility now belongs behind the `easyexcel` facade. The `xls-cli` library instead exposes the stable application boundary: typed requests, execution context, capability manifest, result/error types, and the reusable executor.
 
 ```rust
 use xls_cli::{
@@ -340,7 +349,7 @@ Dynamic-array results spill into neighboring cells and report `#SPILL!` when blo
 | XLS (BIFF8) | ✅ | ✅ | Native Rust reader/writer; formula output may rely on cached values depending on format constraints. |
 | CSV | ✅ | ✅ | Delimiter detection, BOM/encoding handling, and scalar inference are provided by the EasyExcel CSV component. |
 | TSV | Terminal/text input family | ✅ export | Primarily a tabular text output rather than a workbook container. |
-| Markdown | ✅ import | ✅ export | Tables map to sheets; multiple tables can create multiple sheets. |
+| Markdown | ✅ import | ✅ export | `AgentStable` by default; nearest headings name sheets, `007` stays text, formulas/merges produce explicit policy results and warnings. XLSX/CSV can stream; XLS is Workbook Mode only. |
 | Static HTML | ✅ import | ✅ export | Parses local `<table>` markup only; no scripts, remote resources, or uncontrolled CSS execution. |
 | JSON tables | ✅ import | ✅ export | Structured table interchange; not a serialized internal workbook model. |
 
@@ -397,8 +406,11 @@ Tagging `vX.Y.Z` triggers the release workflow. It builds eight native target pa
 
 ## Provenance and license
 
-The CLI/TUI source was migrated from the Easy4Rust `xls` fork and adapted to EasyExcel-Rust components; its migration coverage is documented in the **Migrated source coverage** section above. License terms are [MIT](LICENSE-MIT) or [Apache-2.0](LICENSE-APACHE); see [NOTICE](NOTICE) for provenance and third-party notices.
+The CLI/TUI source was migrated from the Easy4Rust `xls` fork and adapted to the `easyexcel` facade; its migration coverage is documented in the **Migrated source coverage** section above. License terms are [MIT](LICENSE-MIT) or [Apache-2.0](LICENSE-APACHE); see [NOTICE](NOTICE) for provenance and third-party notices.
 
 ### Historical migration verification snapshot
 
 The migration handoff recorded on 2026-08-05 reported formatting, Clippy, 106 Rust tests, CLI/TUI smoke checks, and eight npm package version checks as passing at that time. This is historical migration evidence, not a claim about the state of a different local dependency checkout. Run the commands in **Development and release** for current verification.
+
+The current Markdown convergence change passed 104 library tests, 3 process protocol tests,
+`cargo clippy --all-targets --all-features -- -D warnings`, capability discovery and export schema validation on 2026-08-06.

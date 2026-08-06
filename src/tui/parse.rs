@@ -50,7 +50,7 @@ pub fn parse_input(s: &str) -> Cell {
 /// value is stored as a real number — exporting correctly to Excel. Rejects
 /// strings with surrounding junk so that e.g. `"1 2"` stays text.
 fn parse_number(s: &str) -> Option<f64> {
-    easyexcel_formula::formula::coerce::parse_number_text(s)
+    easyexcel::formula::formula::coerce::parse_number_text(s)
 }
 
 /// The seed text shown in the editor when editing an existing cell: the formula

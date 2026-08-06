@@ -24,7 +24,7 @@ Use `capabilities` as the runtime authority. This version implements:
 - Inspect/extract: `info`, `get`, `head`, `tail`, `query`.
 - Edit: `set`, `clear`, `fill`, `insert-row`, `delete-row`, `insert-col`, `delete-col`.
 - Workbook: `new`, `add-sheet`, `delete-sheet`, `rename-sheet`, `recalc`.
-- Exchange: `convert` for XLS/XLSX/CSV; `import` for Markdown/HTML/JSON to XLS/XLSX; `export` for Markdown/HTML/JSON/CSV/TSV.
+- Exchange: `convert` for XLS/XLSX/CSV; `import` for Markdown/HTML/JSON to XLS/XLSX/XLS/CSV; `export` for Markdown/HTML/JSON/CSV/TSV.
 - Protocol: `capabilities`, `schema --command NAME`.
 
 Commands reported as `partial` have a migrated human-terminal implementation but do not yet expose the stable JSON result contract. Agents must treat `partial` as unavailable unless a user explicitly asks for an interactive terminal workflow. Never emulate or silently replace them.
@@ -43,16 +43,26 @@ The extracted matrix is in `data.rows`. Query output contains `data.columns` and
 ## Generate workbooks from Markdown or HTML
 
 ```sh
-xls import tables.md generated.xlsx --dry-run --json
-xls import tables.md generated.xlsx --json
+xls import tables.md generated.xlsx --infer-types conservative --dry-run --json
+xls import tables.md generated.xlsx --infer-types conservative --json
 xls info generated.xlsx --json
-xls get generated.xlsx 'Sheet1!A1:F20' --format json --json
+xls get generated.xlsx 'Sales!A1:F20' --format json --json
+
+xls export report.xlsx report.md --format markdown \
+  --mode auto --formula cached --merge anchor --dry-run --json
+xls export report.xlsx report.md --format markdown \
+  --mode auto --formula cached --merge anchor --json
 
 xls import local-tables.html generated-from-html.xlsx --dry-run --json
 xls import local-tables.html generated-from-html.xlsx --json
 ```
 
 HTML import parses local static table markup only. It does not execute scripts, load network resources, or apply uncontrolled CSS.
+
+Markdown defaults to the deterministic `agent-stable` profile. A nearby heading names the
+generated worksheet; do not assume `Table1`. Treat structured warnings about hidden sheets,
+merged ranges, styles, or unavailable Event Mode metadata as part of the task result. XLS export
+uses Workbook Mode; XLSX and CSV may use Event Mode. Never request Event Mode for XLS.
 
 ## Edit without overwriting the source
 

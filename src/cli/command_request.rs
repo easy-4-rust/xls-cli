@@ -3,6 +3,8 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use easyexcel::markdown::{MarkdownExportOptions, MarkdownImportOptions};
+
 use crate::{CellInput, CommandName, OutputFormat};
 
 /// 带类型的命令请求。路径使用平台原生 [`PathBuf`]，不强制 UTF-8。
@@ -117,12 +119,19 @@ pub enum CommandRequest {
     /// 根据输出扩展名转换 XLS、XLSX、CSV。
     Convert { input: PathBuf, output: PathBuf },
     /// 从 Markdown、HTML 或 JSON 文档导入工作簿。
-    Import { input: PathBuf, output: PathBuf },
+    Import {
+        input: PathBuf,
+        output: PathBuf,
+        #[serde(default)]
+        markdown_options: Option<MarkdownImportOptions>,
+    },
     /// 将工作簿导出为 Markdown、HTML 或 JSON 文档。
     Export {
         input: PathBuf,
         output: PathBuf,
         output_format: OutputFormat,
+        #[serde(default)]
+        markdown_options: Option<MarkdownExportOptions>,
     },
     /// 重算公式并保存缓存值。
     Recalc {

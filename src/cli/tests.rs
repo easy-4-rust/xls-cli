@@ -16,11 +16,38 @@ fn capabilities_are_machine_readable_and_truthful() {
             .iter()
             .any(|entry| { entry["command"] == "get" && entry["status"] == "supported" })
     );
+    assert_eq!(result.data["markdown"]["import"], true);
+    assert_eq!(
+        result.data["markdown"]["streamingExport"],
+        serde_json::json!(["xlsx", "csv"])
+    );
     assert!(
         commands
             .iter()
             .any(|entry| { entry["command"] == "pivot" && entry["status"] == "partial" })
     );
+}
+
+#[test]
+fn markdown_dry_run_validates_without_creating_output() {
+    let directory = tempfile::tempdir().expect("temp directory");
+    let markdown = directory.path().join("input.md");
+    let workbook = directory.path().join("output.xlsx");
+    fs::write(&markdown, "| id |\n| --- |\n| 007 |\n").expect("fixture");
+    let result = DefaultCommandExecutor::new()
+        .execute(
+            CommandRequest::Import {
+                input: markdown,
+                output: workbook.clone(),
+                markdown_options: None,
+            },
+            &ExecutionContext::new().with_mode(ExecutionMode::DryRun),
+        )
+        .expect("dry-run import");
+    assert!(result.dry_run);
+    assert!(!result.files[0].written);
+    assert!(!workbook.exists());
+    assert_eq!(result.stats["tables"], 1);
 }
 
 #[test]
@@ -72,6 +99,7 @@ fn markdown_import_can_be_reopened_and_extracted() {
             CommandRequest::Import {
                 input: markdown,
                 output: workbook.clone(),
+                markdown_options: None,
             },
             &ExecutionContext::new(),
         )
@@ -132,6 +160,7 @@ fn query_engine_is_available_through_command_contract() {
             CommandRequest::Import {
                 input: markdown,
                 output: workbook.clone(),
+                markdown_options: None,
             },
             &ExecutionContext::new(),
         )

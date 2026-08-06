@@ -206,7 +206,7 @@ mod tests {
         let mut s = Sheet::new("t");
         s.columns.insert(
             0,
-            easyexcel_model::model::ColInfo {
+            easyexcel::model::model::ColInfo {
                 width: Some(200.0),
                 hidden: false,
                 style: None,
@@ -215,7 +215,7 @@ mod tests {
         assert_eq!(col_width(&s, 0), MAX_COL_WIDTH);
         s.columns.insert(
             1,
-            easyexcel_model::model::ColInfo {
+            easyexcel::model::model::ColInfo {
                 width: Some(1.0),
                 hidden: false,
                 style: None,
@@ -229,7 +229,7 @@ mod tests {
         let mut s = Sheet::new("t");
         s.columns.insert(
             0,
-            easyexcel_model::model::ColInfo {
+            easyexcel::model::model::ColInfo {
                 width: Some(10.0),
                 hidden: true,
                 style: None,

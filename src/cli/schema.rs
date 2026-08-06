@@ -27,6 +27,46 @@ pub fn command_schema(command: CommandName) -> Value {
                 json!({"enum": ["json", "csv", "tsv", "markdown", "html"]}),
             );
         }
+        CommandName::Import => {
+            add_path(&mut properties, &mut required, "input");
+            add_path(&mut properties, &mut required, "output");
+            properties.insert(
+                "markdown_options".to_owned(),
+                json!({
+                    "type": ["object", "null"],
+                    "properties": {
+                        "tables": {
+                            "description": "all，或带 index/name 的表格选择对象"
+                        },
+                        "type_inference": {
+                            "enum": ["text", "conservative", "aggressive"]
+                        },
+                        "apply_header_style": {"type": "boolean"}
+                    }
+                }),
+            );
+        }
+        CommandName::Export => {
+            add_path(&mut properties, &mut required, "input");
+            add_path(&mut properties, &mut required, "output");
+            properties.insert(
+                "output_format".to_owned(),
+                json!({"enum": ["json", "csv", "tsv", "markdown", "html"]}),
+            );
+            required.push(json!("output_format"));
+            properties.insert(
+                "markdown_options".to_owned(),
+                json!({
+                    "type": ["object", "null"],
+                    "properties": {
+                        "profile": {"enum": ["agent-stable", "human-readable"]},
+                        "mode": {"enum": ["auto", "event", "workbook"]},
+                        "formulas": {"enum": ["cached", "expression", "both"]},
+                        "merges": {"enum": ["anchor", "repeat", "html", "error"]}
+                    }
+                }),
+            );
+        }
         CommandName::Capabilities => {}
         CommandName::Schema => {
             properties.insert("target".to_owned(), json!({"type": "string"}));

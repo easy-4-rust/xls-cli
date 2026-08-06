@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{CommandName, SchemaVersion};
+use crate::{CommandName, MarkdownCapability, SchemaVersion};
 
 /// 单项能力状态。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -41,6 +41,8 @@ pub struct CapabilityManifest {
     pub read_modes: Vec<String>,
     /// 写入模式。
     pub write_modes: Vec<String>,
+    /// Markdown 投影层能力。
+    pub markdown: MarkdownCapability,
 }
 
 impl CapabilityManifest {
@@ -132,6 +134,7 @@ impl CapabilityManifest {
             commands,
             read_modes: vec!["workbook".to_owned(), "xlsx-event".to_owned()],
             write_modes: vec!["generate".to_owned(), "round-trip".to_owned()],
+            markdown: MarkdownCapability::default(),
         }
     }
 }

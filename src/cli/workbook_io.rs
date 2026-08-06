@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 
 use easyexcel::csv::{CsvReadOptions, CsvWriteOptions};
 use easyexcel::io::{Format, ResourceLimits};
+use easyexcel::markdown::{MarkdownConversionReport, MarkdownExportOptions, MarkdownImportOptions};
 use easyexcel::model::{Cell, Workbook};
 
 use crate::{
@@ -35,11 +36,11 @@ pub(crate) fn open_workbook(
     }
     let format = detect_input_format(path)?;
     let workbook = match format {
-        Format::Xlsx => easyexcel_xlsx::read_path_with_password(
+        Format::Xlsx => easyexcel::xlsx::read_path_with_password(
             path,
             context.password().map(SecretString::expose_secret),
         ),
-        Format::Xls => easyexcel_xls::read_path(path),
+        Format::Xls => easyexcel::xls::read_path(path),
         Format::Csv => File::open(path)
             .map_err(easyexcel::io::Error::from)
             .and_then(|file| easyexcel::csv::read_csv(file, &CsvReadOptions::default())),
@@ -113,6 +114,88 @@ pub(crate) fn write_text(
     Ok(true)
 }
 
+/// 通过 `EasyExcel` Markdown 门面原子导出，保留 dry-run 与覆盖保护。
+pub(crate) fn export_markdown(
+    input: &Path,
+    target: &Path,
+    options: &MarkdownExportOptions,
+    context: &ExecutionContext,
+) -> Result<(bool, MarkdownConversionReport), CommandError> {
+    validate_target(target, context)?;
+    let options = options.clone().with_limits(context.limits());
+    if context.mode() == ExecutionMode::DryRun {
+        let (_, report) = easyexcel::markdown::export_to_writer_with_password(
+            input,
+            Vec::new(),
+            &options,
+            context.password().map(SecretString::expose_secret),
+        )
+        .map_err(|error| markdown_error(&error))?;
+        return Ok((false, report));
+    }
+    let parent = target.parent().unwrap_or_else(|| Path::new("."));
+    fs::create_dir_all(parent).map_err(|error| write_error(target, error))?;
+    let mut temporary =
+        tempfile::NamedTempFile::new_in(parent).map_err(|error| write_error(target, error))?;
+    let (_, report) = easyexcel::markdown::export_to_writer_with_password(
+        input,
+        temporary.as_file_mut(),
+        &options,
+        context.password().map(SecretString::expose_secret),
+    )
+    .map_err(|error| markdown_error(&error))?;
+    temporary
+        .as_file_mut()
+        .flush()
+        .map_err(|error| write_error(target, error))?;
+    temporary
+        .persist(target)
+        .map_err(|error| write_error(target, error.error))?;
+    Ok((true, report))
+}
+
+/// 通过 `EasyExcel` Markdown 门面原子导入，保留 dry-run 与覆盖保护。
+pub(crate) fn import_markdown(
+    input: &Path,
+    target: &Path,
+    options: &MarkdownImportOptions,
+    context: &ExecutionContext,
+) -> Result<(bool, MarkdownConversionReport), CommandError> {
+    validate_target(target, context)?;
+    let format = Format::from_path(target).ok_or_else(|| {
+        CommandError::new(
+            ErrorCode::UnsupportedFormat,
+            format!("无法从扩展名识别输出格式：{}", target.display()),
+        )
+    })?;
+    let options = options.clone().with_limits(context.limits());
+    if context.mode() == ExecutionMode::DryRun {
+        let (_, report) = easyexcel::markdown::import_to_writer(
+            input,
+            format,
+            std::io::Cursor::new(Vec::new()),
+            &options,
+        )
+        .map_err(|error| markdown_error(&error))?;
+        return Ok((false, report));
+    }
+    let parent = target.parent().unwrap_or_else(|| Path::new("."));
+    fs::create_dir_all(parent).map_err(|error| write_error(target, error))?;
+    let mut temporary =
+        tempfile::NamedTempFile::new_in(parent).map_err(|error| write_error(target, error))?;
+    let (_, report) =
+        easyexcel::markdown::import_to_writer(input, format, temporary.as_file_mut(), &options)
+            .map_err(|error| markdown_error(&error))?;
+    temporary
+        .as_file_mut()
+        .flush()
+        .map_err(|error| write_error(target, error))?;
+    temporary
+        .persist(target)
+        .map_err(|error| write_error(target, error.error))?;
+    Ok((true, report))
+}
+
 pub(crate) fn mutation_target(
     input: &Path,
     output: Option<PathBuf>,
@@ -132,16 +215,16 @@ pub(crate) fn mutation_target(
 
 pub(crate) fn detect_tabular_format(
     path: &Path,
-) -> Result<easyexcel_tabular::TabularFormat, CommandError> {
+) -> Result<easyexcel::tabular::TabularFormat, CommandError> {
     match path
         .extension()
         .and_then(|value| value.to_str())
         .map(str::to_ascii_lowercase)
         .as_deref()
     {
-        Some("md" | "markdown") => Ok(easyexcel_tabular::TabularFormat::Markdown),
-        Some("html" | "htm") => Ok(easyexcel_tabular::TabularFormat::Html),
-        Some("json") => Ok(easyexcel_tabular::TabularFormat::Json),
+        Some("md" | "markdown") => Ok(easyexcel::tabular::TabularFormat::Markdown),
+        Some("html" | "htm") => Ok(easyexcel::tabular::TabularFormat::Html),
+        Some("json") => Ok(easyexcel::tabular::TabularFormat::Json),
         _ => Err(CommandError::new(
             ErrorCode::UnsupportedFormat,
             format!("不支持的表格文档格式：{}", path.display()),
@@ -217,8 +300,8 @@ fn write_to<W: Read + Write + Seek>(
     writer: W,
 ) -> easyexcel::io::Result<()> {
     match format {
-        Format::Xlsx => easyexcel_xlsx::write(workbook, writer),
-        Format::Xls => easyexcel_xls::write(workbook, writer),
+        Format::Xlsx => easyexcel::xlsx::write(workbook, writer),
+        Format::Xls => easyexcel::xls::write(workbook, writer),
         Format::Csv => easyexcel::csv::write_csv(workbook, 0, writer, &CsvWriteOptions::default()),
         _ => Err(easyexcel::io::Error::Unsupported(
             "当前构建不支持该输出格式".to_owned(),
@@ -232,4 +315,13 @@ fn write_error(path: &Path, error: impl std::fmt::Display) -> CommandError {
         format!("无法写入目标文件：{}", path.display()),
     )
     .with_diagnostic(error.to_string())
+}
+
+fn markdown_error(error: &easyexcel::ExcelError) -> CommandError {
+    let code = match error {
+        easyexcel::ExcelError::ResourceLimit(_) => ErrorCode::ResourceLimit,
+        easyexcel::ExcelError::Unsupported(_) => ErrorCode::UnsupportedFormat,
+        _ => ErrorCode::WriteFailed,
+    };
+    CommandError::new(code, "Markdown 转换失败").with_diagnostic(error.to_string())
 }

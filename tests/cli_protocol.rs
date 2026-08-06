@@ -51,7 +51,7 @@ fn markdown_task_chain_dry_runs_writes_and_reopens_output() {
     let get = run(&[
         "get",
         &output_text,
-        "Table1!A1:B3",
+        "Sales!A1:B3",
         "--format",
         "json",
         "--json",

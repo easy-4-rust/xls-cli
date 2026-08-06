@@ -8,7 +8,8 @@ pub mod tui;
 
 pub use cli::{
     CapabilityManifest, CapabilityStatus, CellInput, CommandCapability, CommandError,
-    CommandExecutor, CommandName, CommandRequest, CommandResult, DefaultCommandExecutor, ErrorCode,
-    ExecutionContext, ExecutionMode, GeneratedFile, OutputFormat, OverwritePolicy, ResourceLimits,
-    SchemaVersion, SecretString, command_schema,
+    CommandExecutor, CommandName, CommandRequest, CommandResult, CommandWarning,
+    DefaultCommandExecutor, ErrorCode, ExecutionContext, ExecutionMode, GeneratedFile,
+    MarkdownCapability, OutputFormat, OverwritePolicy, ResourceLimits, SchemaVersion, SecretString,
+    command_schema,
 };
