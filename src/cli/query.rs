@@ -505,7 +505,7 @@ impl Parser {
         if let Some(agg) = agg {
             self.next(); // ident
             self.next(); // (
-            let arg = if self.eat(&Tok::Star) {
+            let aggregate_arg = if self.eat(&Tok::Star) {
                 None
             } else {
                 Some(self.parse_colref()?)
@@ -513,7 +513,7 @@ impl Parser {
             self.expect(&Tok::RParen)?;
             let alias = self.parse_optional_alias()?;
             return Ok(SelectItem::Expr {
-                expr: SelExpr::Agg(agg, arg),
+                expr: SelExpr::Agg(agg, aggregate_arg),
                 alias,
             });
         }
