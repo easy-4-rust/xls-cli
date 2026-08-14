@@ -94,42 +94,42 @@ openclaw/Hermes 等智能体通过 SKILL.md 无禁用清单地安全使用全部
 
 技术方案 P1 组2 门槛：输入/输出所有权、dry-run、回读断言。除 filter 外全部走 mutate 管道。
 
-- [ ] **Task 2.1 filter（读动词）**
+- [x] **Task 2.1 filter（读动词）**
   data = `{rows: [[...]], columns}`；stats = `{rows: N}`。谓词复用 `Predicate::parse`
   （terminal.rs:2905）。不复用 cmd_filter 的临时 Workbook+render 路径（探索报告风险点），
   改为直接产出行集。
-- [ ] **Task 2.2 sort（mutate）**
+- [x] **Task 2.2 sort（mutate）**
   闭包内复用 snapshot_rows/rewrite_rows + cmd_sort（:2226）；data = `{sorted_by,
   descending, rows: N}`。测试含 dry-run（files[].written == false）→ apply → `get` 回读
   断言顺序。
-- [ ] **Task 2.3 dedup（mutate）**：复用 cmd_dedup；data = `{removed: N, remaining: N}`；
+- [x] **Task 2.3 dedup（mutate）**：复用 cmd_dedup；data = `{removed: N, remaining: N}`；
   回读断言。
-- [ ] **Task 2.4 copy（mutate）**：data = `{source, target, cells: N}`；回读断言。
-- [ ] **Task 2.5 move（mutate）**：copy+clear 组合；data = `{source, target, cells: N}`；
+- [x] **Task 2.4 copy（mutate）**：data = `{source, target, cells: N}`；回读断言。
+- [x] **Task 2.5 move（mutate）**：copy+clear 组合；data = `{source, target, cells: N}`；
   源范围回读断言为空。
-- [ ] **Task 2.6 append（mutate）**：按表头名对齐语义（复用 cmd_append）；data =
+- [x] **Task 2.6 append（mutate）——与 Task 3.1 多输入协议合并执行**：按表头名对齐语义（复用 cmd_append）；data =
   `{appended: N, matched_columns}`；回读断言。
-- [ ] **Task 2.7 组2 收尾**：schema×6、SKILL.md、README×2、sync-skills。
+- [x] **Task 2.7 组2 收尾**：schema×6、SKILL.md、README×2、sync-skills。
 
 ## Milestone 3：组3 多工作簿动词（join / pivot / diff）
 
 技术方案 P1 组3 门槛：多工作簿 schema、内存预算、错误/排序语义。
 
-- [ ] **Task 3.1 多输入协议扩展**
+- [x] **Task 3.1 多输入协议扩展**
   `CommandRequest` 相关动词增加第二输入字段（命名 `with: PathBuf`，join/diff 用）；
   workbook_io::open_workbook 复用（资源限制对两个文件各自生效）；错误码沿用文件类（5）
   + 明确 `diagnostic` 指明是哪个输入。args.rs 参数名与 terminal 侧对齐（`--with`）。
-- [ ] **Task 3.2 pivot（读）**
+- [x] **Task 3.2 pivot（读）**
   data = `{rows, columns}`；`Agg` 枚举 serde 化（sum/count/avg/min/max）。BTreeMap 分组
   语义复用 cmd_pivot（:2154），TSV 拼接改为行集。
-- [ ] **Task 3.3 join（读）**
+- [x] **Task 3.3 join（读）**
   data = `{rows, columns}`；equi-join 语义复用 cmd_join（:2337），去掉临时 Workbook。
   stats = `{rows: N}`。
-- [ ] **Task 3.4 diff（读，双模式）**
+- [x] **Task 3.4 diff（读，双模式）**
   位置模式 + `--key` 行键模式；data = `{mode, differences: [{kind: "cell"|"added"|
   "removed"|"changed", sheet?, address?, key?, left, right}]}`；stats =
   `{differences: N}`。语义复用 cmd_diff（:1816）/cmd_diff_keyed（:2047）。
-- [ ] **Task 3.5 组3 收尾**：多输入 schema、SKILL.md（diff/join 需写双文件安全规约：两个
+- [x] **Task 3.5 组3 收尾**：多输入 schema、SKILL.md（diff/join 需写双文件安全规约：两个
   输入都不得是输出路径）、README×2、sync-skills。
 
 ## Milestone 4：组4 样式/元数据/批量动词（format-set / to-number / to-date / style / autofit / name / table / batch）
