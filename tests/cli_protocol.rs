@@ -190,6 +190,65 @@ fn group2_group3_verbs_return_structured_contracts() {
 }
 
 #[test]
+fn group4_verbs_return_structured_contracts() {
+    let directory = tempfile::tempdir().expect("temp directory");
+    let markdown = directory.path().join("g4.md");
+    let workbook_path = directory.path().join("g4.xlsx");
+    std::fs::write(
+        &markdown,
+        "| code | when |\n| --- | --- |\n| 6,000.00 | 04/04/2025 |\n| 7 | 05/04/2025 |\n",
+    )
+    .expect("fixture");
+    let markdown_text = markdown.to_string_lossy();
+    let workbook_text = workbook_path.to_string_lossy();
+    assert!(run(&["import", &markdown_text, &workbook_text, "--json"])
+        .status
+        .success());
+
+    for arguments in [
+        vec!["format-set", &workbook_text, "B2:B3", "dd/mm/yyyy", "--output",
+             &directory.path().join("a.xlsx").to_string_lossy(), "--json"],
+        vec!["to-number", &workbook_text, "A2:A3", "--output",
+             &directory.path().join("b.xlsx").to_string_lossy(), "--json"],
+        vec!["to-date", &workbook_text, "B2:B3", "--format", "dd/mm/yyyy", "--output",
+             &directory.path().join("c.xlsx").to_string_lossy(), "--json"],
+        vec!["autofit", &workbook_text, "--output",
+             &directory.path().join("d.xlsx").to_string_lossy(), "--json"],
+        vec!["style", &workbook_text, "A1:B1", "--bold", "--bg", "FFFF00", "--output",
+             &directory.path().join("e.xlsx").to_string_lossy(), "--json"],
+        vec!["batch", &workbook_text, "--set", "A9=done", "--set", "B9=2", "--output",
+             &directory.path().join("f.xlsx").to_string_lossy(), "--json"],
+        vec!["name", &workbook_text, "add", "Total", "Table1!$A$1", "--output",
+             &directory.path().join("g.xlsx").to_string_lossy(), "--json"],
+        vec!["name", &workbook_text, "list", "--json"],
+        vec!["table", &workbook_text, "add", "A1:B3", "--name", "SalesTable", "--output",
+             &directory.path().join("h.xlsx").to_string_lossy(), "--json"],
+        vec!["table", &workbook_text, "list", "--json"],
+    ] {
+        let output = run(&arguments);
+        assert!(
+            output.status.success(),
+            "命令 {:?} 应成功：{}",
+            arguments.first(),
+            String::from_utf8_lossy(&output.stdout)
+        );
+        assert!(
+            output.stderr.is_empty(),
+            "命令 {:?} 的 stderr 应为空",
+            arguments.first()
+        );
+        let value: serde_json::Value =
+            serde_json::from_slice(&output.stdout).expect("JSON");
+        let command = value["command"].as_str().unwrap_or_default().to_owned();
+        assert_eq!(
+            Some(command.as_str()),
+            arguments.first().copied(),
+            "command 字段应与动词一致"
+        );
+    }
+}
+
+#[test]
 fn markdown_task_chain_dry_runs_writes_and_reopens_output() {
     let directory = tempfile::tempdir().expect("temp directory");
     let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/tables.md");

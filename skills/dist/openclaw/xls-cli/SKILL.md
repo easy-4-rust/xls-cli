@@ -56,6 +56,10 @@ Apply these rules:
 | Reshape rows | `sort`, `dedup`, `copy`, `move`, `append` | Mutating verbs; always dry-run first, write to a new output path. |
 | Aggregate | `pivot` | Group by one column, aggregate another (sum/count/mean/min/max). |
 | Combine workbooks | `join`, `diff` | Two inputs (`input` + `with`); join on a shared key column, diff keyed or cell-level. |
+| Clean data | `to-number`, `to-date` | Convert text-stored numbers/dates into real typed values, then verify with `profile`. |
+| Format & style | `format-set`, `style`, `autofit` | Number-format codes, bold/italic/RRGGBB colors, column autofit. |
+| Metadata | `name`, `table` | Defined names and table objects with `list`/`add`/`remove` sub-actions. |
+| Atomic edits | `batch` | Many `CELL=VALUE` edits in one open/save; all-or-nothing. |
 | Query | `query` | Read-only SQL; sheets are tables and row 0 is the header. |
 | Edit cells | `set`, `clear`, `fill` | Provide `--output` unless creating a new workbook. |
 | Edit axes | `insert-row`, `delete-row`, `insert-col`, `delete-col` | CLI positions are zero-based. |
@@ -65,7 +69,7 @@ Apply these rules:
 | Export tables | `export` | Markdown/HTML/JSON/CSV/TSV output. |
 | Discover protocol | `capabilities`, `schema` | Runtime truth; do not cache indefinitely. |
 
-Do not use `open`, `format-set`, `to-number`, `to-date`, `style`, `autofit`, `batch`, `name`, or `table` when capability marks them `partial`, unless the user explicitly requests a human-operated terminal workflow. For `join`, `diff`, and `append`, the second input (`with`) must differ from the output path, and neither input may be overwritten.
+All verbs except `open` (interactive TUI) are structured `supported` commands. Never launch `open` in automation. For `join`, `diff`, and `append`, the second input (`with`) must differ from the output path, and neither input may be overwritten. `batch` applies edits atomically: any invalid `CELL=VALUE` entry fails the whole request without writing.
 
 ## Inspect and extract data
 

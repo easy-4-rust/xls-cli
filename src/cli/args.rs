@@ -431,7 +431,7 @@ pub(crate) enum Commands {
         input: PathBuf,
         #[command(subcommand)]
         action: CliNameAction,
-        #[arg(short, long)]
+        #[arg(short, long, global = true)]
         output: Option<PathBuf>,
     },
     /// 管理 Excel 表格对象（list/add/rm）。
@@ -439,7 +439,7 @@ pub(crate) enum Commands {
         input: PathBuf,
         #[command(subcommand)]
         action: CliTableAction,
-        #[arg(short, long)]
+        #[arg(short, long, global = true)]
         output: Option<PathBuf>,
     },
     /// 一次保存内应用多条 CELL=VALUE 编辑（原子）。

@@ -195,6 +195,68 @@ pub fn command_schema(command: CommandName) -> Value {
             );
             properties.insert("sheet".to_owned(), json!({"type": ["string", "null"]}));
         }
+        CommandName::FormatSet => {
+            add_path(&mut properties, &mut required, "input");
+            properties.insert("range".to_owned(), json!({"type": "string"}));
+            required.push(json!("range"));
+            properties.insert("code".to_owned(), json!({"type": "string"}));
+            required.push(json!("code"));
+            properties.insert("sheet".to_owned(), json!({"type": ["string", "null"]}));
+            properties.insert("output".to_owned(), json!({"type": ["string", "null"]}));
+        }
+        CommandName::ToNumber | CommandName::ToDate => {
+            add_path(&mut properties, &mut required, "input");
+            properties.insert("range".to_owned(), json!({"type": "string"}));
+            required.push(json!("range"));
+            if matches!(command, CommandName::ToDate) {
+                properties.insert("format".to_owned(), json!({"type": "string", "description": "源文本日期格式"}));
+                required.push(json!("format"));
+            }
+            properties.insert("sheet".to_owned(), json!({"type": ["string", "null"]}));
+            properties.insert("output".to_owned(), json!({"type": ["string", "null"]}));
+        }
+        CommandName::Autofit => {
+            add_path(&mut properties, &mut required, "input");
+            properties.insert("columns".to_owned(), json!({"type": ["string", "null"], "description": "列范围如 A:C；缺省全部"}));
+            properties.insert("sheet".to_owned(), json!({"type": ["string", "null"]}));
+            properties.insert("output".to_owned(), json!({"type": ["string", "null"]}));
+        }
+        CommandName::Style => {
+            add_path(&mut properties, &mut required, "input");
+            properties.insert("range".to_owned(), json!({"type": "string"}));
+            required.push(json!("range"));
+            properties.insert("bold".to_owned(), json!({"type": "boolean"}));
+            properties.insert("italic".to_owned(), json!({"type": "boolean"}));
+            properties.insert("color".to_owned(), json!({"type": ["string", "null"], "description": "RRGGBB"}));
+            properties.insert("bg".to_owned(), json!({"type": ["string", "null"], "description": "RRGGBB"}));
+            properties.insert("sheet".to_owned(), json!({"type": ["string", "null"]}));
+            properties.insert("output".to_owned(), json!({"type": ["string", "null"]}));
+        }
+        CommandName::Name | CommandName::Table => {
+            add_path(&mut properties, &mut required, "input");
+            properties.insert(
+                "action".to_owned(),
+                json!({
+                    "oneOf": [
+                        {"type": "string", "const": "list"},
+                        {"type": "object", "properties": {"action": {"const": "add"}}},
+                        {"type": "object", "properties": {"action": {"const": "remove"}}}
+                    ]
+                }),
+            );
+            required.push(json!("action"));
+            properties.insert("output".to_owned(), json!({"type": ["string", "null"]}));
+        }
+        CommandName::Batch => {
+            add_path(&mut properties, &mut required, "input");
+            properties.insert(
+                "sets".to_owned(),
+                json!({"type": "array", "items": {"type": "string"}, "description": "形如 A1=值 或 Sheet1!A1=值"}),
+            );
+            required.push(json!("sets"));
+            properties.insert("sheet".to_owned(), json!({"type": ["string", "null"]}));
+            properties.insert("output".to_owned(), json!({"type": ["string", "null"]}));
+        }
         CommandName::Capabilities => {}
         CommandName::Schema => {
             properties.insert("target".to_owned(), json!({"type": "string"}));

@@ -66,9 +66,11 @@ flowchart LR
 | 搜索/画像/计算 | `grep`、`profile`、`eval`、`format` | `supported` | `xls grep report.xlsx ZANMAI --json` |
 | 过滤/重塑/聚合 | `filter`、`sort`、`dedup`、`copy`、`move`、`append`、`pivot` | `supported` | `xls filter report.xlsx 'amount>1000' --json` |
 | 合并工作簿 | `join`、`diff` | `supported` | `xls diff before.xlsx after.xlsx --key date --json` |
-| 高级终端操作 | `format-set`、`to-number`、`to-date`、`style`、`autofit`、`batch`、`name`、`table` | `partial` | `xls batch report.xlsx --help` |
+| 清洗与格式 | `to-number`、`to-date`、`format-set`、`style`、`autofit` | `supported` | `xls to-number report.xlsx H1:H200 --json` |
+| 元数据与批量 | `name`、`table`、`batch` | `supported` | `xls batch report.xlsx --set A1=1 --json` |
+| 交互 TUI | `open`（或直接给工作簿路径） | `partial` | `xls open report.xlsx` |
 
-`partial` 表示存在已迁移的人类终端实现，并不表示存在结构化 result contract。为避免智能体误用，传入 `--json` 会明确返回 `UNSUPPORTED_COMMAND`；不得解析人类终端文本作为替代 API。
+`partial` 目前仅适用于 `open`（交互式 TUI）。为避免智能体误用，传入 `--json` 会明确返回 `UNSUPPORTED_COMMAND`；不得解析人类终端文本作为替代 API。
 
 ## 安装与验证
 

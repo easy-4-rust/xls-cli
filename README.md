@@ -66,9 +66,11 @@ The binary's `xls capabilities --json` result is the source of truth. The follow
 | Search / profile / compute | `grep`, `profile`, `eval`, `format` | `supported` | `xls grep report.xlsx ZANMAI --json` |
 | Filter / reshape / aggregate | `filter`, `sort`, `dedup`, `copy`, `move`, `append`, `pivot` | `supported` | `xls filter report.xlsx 'amount>1000' --json` |
 | Combine workbooks | `join`, `diff` | `supported` | `xls diff before.xlsx after.xlsx --key date --json` |
-| Advanced terminal operations | `format-set`, `to-number`, `to-date`, `style`, `autofit`, `batch`, `name`, `table` | `partial` | `xls batch report.xlsx --help` |
+| Clean & format | `to-number`, `to-date`, `format-set`, `style`, `autofit` | `supported` | `xls to-number report.xlsx H1:H200 --json` |
+| Metadata & batch | `name`, `table`, `batch` | `supported` | `xls batch report.xlsx --set A1=1 --json` |
+| Interactive TUI | `open` (or a workbook path) | `partial` | `xls open report.xlsx` |
 
-`partial` means that a migrated human-terminal implementation exists, not that a structured result contract exists. `--json` intentionally returns `UNSUPPORTED_COMMAND` for those commands. Agent integrations must not parse human-oriented terminal output as an API substitute.
+`partial` currently applies only to `open` (the interactive TUI). `--json` intentionally returns `UNSUPPORTED_COMMAND` for it. Agent integrations must not parse human-oriented terminal output as an API substitute.
 
 ## Install and verify
 
