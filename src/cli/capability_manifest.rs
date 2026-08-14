@@ -85,14 +85,14 @@ impl CapabilityManifest {
             CommandName::Append,
             CommandName::Join,
             CommandName::Diff,
-        ];
-        const TERMINAL_ONLY: &[CommandName] = &[
-            CommandName::Open,
             CommandName::FormatSet,
             CommandName::ToNumber,
             CommandName::ToDate,
-            CommandName::Style,
             CommandName::Autofit,
+        ];
+        const TERMINAL_ONLY: &[CommandName] = &[
+            CommandName::Open,
+            CommandName::Style,
             CommandName::Batch,
             CommandName::Name,
             CommandName::Table,

@@ -230,6 +230,36 @@ pub enum CommandRequest {
         key: Option<String>,
         sheet: Option<String>,
     },
+    /// 为范围设置数字格式代码。
+    FormatSet {
+        input: PathBuf,
+        range: String,
+        code: String,
+        sheet: Option<String>,
+        output: Option<PathBuf>,
+    },
+    /// 把范围内文本存储的数字强制转换为数值。
+    ToNumber {
+        input: PathBuf,
+        range: String,
+        sheet: Option<String>,
+        output: Option<PathBuf>,
+    },
+    /// 把范围内文本日期解析为日期序列并应用格式。
+    ToDate {
+        input: PathBuf,
+        range: String,
+        format: String,
+        sheet: Option<String>,
+        output: Option<PathBuf>,
+    },
+    /// 按内容自适应列宽。
+    Autofit {
+        input: PathBuf,
+        columns: Option<String>,
+        sheet: Option<String>,
+        output: Option<PathBuf>,
+    },
     /// 已进入协议但尚未迁入生产实现的命令。
     Planned {
         command_name: CommandName,
@@ -278,6 +308,10 @@ impl CommandRequest {
             Self::Append { .. } => CommandName::Append,
             Self::Join { .. } => CommandName::Join,
             Self::Diff { .. } => CommandName::Diff,
+            Self::FormatSet { .. } => CommandName::FormatSet,
+            Self::ToNumber { .. } => CommandName::ToNumber,
+            Self::ToDate { .. } => CommandName::ToDate,
+            Self::Autofit { .. } => CommandName::Autofit,
             Self::Planned { command_name, .. } => *command_name,
         }
     }

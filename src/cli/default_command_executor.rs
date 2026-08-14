@@ -303,6 +303,40 @@ impl CommandExecutor for DefaultCommandExecutor {
                 agg,
                 sheet,
             } => pivot(&input, &rows, &values, agg, sheet.as_deref(), context),
+            CommandRequest::FormatSet {
+                input,
+                range,
+                code,
+                sheet,
+                output,
+            } => mutate(&input, output, context, command, |workbook| {
+                set_number_format(workbook, &range, &code, sheet.as_deref())
+            }),
+            CommandRequest::ToNumber {
+                input,
+                range,
+                sheet,
+                output,
+            } => mutate(&input, output, context, command, |workbook| {
+                coerce_text_numbers(workbook, &range, sheet.as_deref())
+            }),
+            CommandRequest::ToDate {
+                input,
+                range,
+                format,
+                sheet,
+                output,
+            } => mutate(&input, output, context, command, |workbook| {
+                coerce_text_dates(workbook, &range, &format, sheet.as_deref())
+            }),
+            CommandRequest::Autofit {
+                input,
+                columns,
+                sheet,
+                output,
+            } => mutate(&input, output, context, command, |workbook| {
+                autofit_columns(workbook, columns.as_deref(), sheet.as_deref())
+            }),
             CommandRequest::Append {
                 input,
                 with,
@@ -1116,6 +1150,106 @@ fn diff(
     let mut result = CommandResult::new(CommandName::Diff, data, is_dry_run(context));
     result.stats.insert("differences".to_owned(), count as u64);
     Ok(result)
+}
+
+/// 为范围逐格设置数字格式代码（保留其它样式属性）。
+fn set_number_format(
+    workbook: &mut Workbook,
+    range: &str,
+    code: &str,
+    sheet: Option<&str>,
+) -> Result<Value, CommandError> {
+    let selection = resolve_selection(workbook, Some(range), sheet)?;
+    let mut cells = 0u64;
+    for (row, column) in selection.range.iter_cells() {
+        let mut style = workbook.sheets[selection.sheet_index]
+            .style_at(row, column)
+            .and_then(|index| workbook.styles.get(index).cloned())
+            .unwrap_or_default();
+        style.number_format = code.to_owned();
+        style.number_format_id = None; // 自定义代码；丢弃内置格式 id
+        let interned = workbook.styles.intern(style);
+        workbook.sheets[selection.sheet_index].set_style(row, column, interned);
+        cells += 1;
+    }
+    Ok(json!({"range": range, "format_code": code, "cells": cells}))
+}
+
+/// 把范围内文本存储的数字强制转换为数值（复用 Sheet 内建强制转换）。
+fn coerce_text_numbers(
+    workbook: &mut Workbook,
+    range: &str,
+    sheet: Option<&str>,
+) -> Result<Value, CommandError> {
+    let selection = resolve_selection(workbook, Some(range), sheet)?;
+    let converted =
+        workbook.sheets[selection.sheet_index].coerce_text_to_numbers(selection.range);
+    Ok(json!({"range": range, "converted": converted}))
+}
+
+/// 把范围内文本日期解析为日期序列并应用给定格式（非文本/不匹配单元格不动）。
+fn coerce_text_dates(
+    workbook: &mut Workbook,
+    range: &str,
+    format: &str,
+    sheet: Option<&str>,
+) -> Result<Value, CommandError> {
+    let selection = resolve_selection(workbook, Some(range), sheet)?;
+    let system = workbook.date_system;
+    let mut converted = 0u64;
+    for (row, column) in selection.range.iter_cells() {
+        let serial = match workbook.sheets[selection.sheet_index].get(row, column) {
+            Some(easyexcel::model::Cell::Text(text)) => {
+                easyexcel::model::dates::parse_text_date(text, format, system)
+            }
+            _ => None,
+        };
+        if let Some(serial) = serial {
+            workbook.sheets[selection.sheet_index].set(row, column, easyexcel::model::Cell::Number(serial));
+            let mut style = workbook.sheets[selection.sheet_index]
+                .style_at(row, column)
+                .and_then(|index| workbook.styles.get(index).cloned())
+                .unwrap_or_default();
+            style.number_format = format.to_owned();
+            style.number_format_id = None;
+            let interned = workbook.styles.intern(style);
+            workbook.sheets[selection.sheet_index].set_style(row, column, interned);
+            converted += 1;
+        }
+    }
+    Engine::new().recalc(workbook);
+    Ok(json!({"range": range, "format": format, "converted": converted}))
+}
+
+/// 按显示宽度自适应列宽（字符数 + 填充，夹在 3..=120）。
+#[allow(clippy::cast_precision_loss, reason = "宽度单位本就是近似字符宽")]
+fn autofit_columns(
+    workbook: &mut Workbook,
+    columns: Option<&str>,
+    sheet: Option<&str>,
+) -> Result<Value, CommandError> {
+    let selection = resolve_selection(workbook, columns, sheet)?;
+    let rows = workbook.sheets[selection.sheet_index].dimensions().0;
+    let mut fitted = 0u64;
+    for column in selection.range.start.col..=selection.range.end.col {
+        let mut width = 0usize;
+        for row in 0..rows {
+            width = width.max(
+                workbook
+                    .display_cell(selection.sheet_index, row, column)
+                    .chars()
+                    .count(),
+            );
+        }
+        let fitted_width = ((width + 2).clamp(3, 120)) as f64;
+        let info = workbook.sheets[selection.sheet_index]
+            .columns
+            .entry(column)
+            .or_default();
+        info.width = Some(fitted_width);
+        fitted += 1;
+    }
+    Ok(json!({"columns": fitted}))
 }
 
 fn info(path: &Path, context: &ExecutionContext) -> Result<CommandResult, CommandError> {

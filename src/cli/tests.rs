@@ -761,6 +761,112 @@ fn multi_input_verbs_append_join_diff() {
 }
 
 #[test]
+fn group4_batch1_format_number_date_autofit() {
+    let directory = tempfile::tempdir().expect("temp directory");
+    let markdown = directory.path().join("input.md");
+    let workbook = directory.path().join("book.xlsx");
+    fs::write(
+        &markdown,
+        "| code | when |\n| --- | --- |\n| 6,000.00 | 04/04/2025 |\n| 7 | 05/04/2025 |\n",
+    )
+    .expect("write fixture");
+    let executor = DefaultCommandExecutor::new();
+    executor
+        .execute(
+            CommandRequest::Import {
+                input: markdown,
+                output: workbook.clone(),
+                markdown_options: None,
+            },
+            &ExecutionContext::new(),
+        )
+        .expect("import markdown");
+
+    // format-set：给 B 列设置日期格式
+    let formatted = directory.path().join("formatted.xlsx");
+    let result = executor
+        .execute(
+            CommandRequest::FormatSet {
+                input: workbook.clone(),
+                range: "B2:B3".to_owned(),
+                code: "dd/mm/yyyy".to_owned(),
+                sheet: None,
+                output: Some(formatted.clone()),
+            },
+            &ExecutionContext::new(),
+        )
+        .expect("format-set");
+    assert_eq!(result.data["cells"], 2);
+    let check = executor
+        .execute(
+            CommandRequest::Format {
+                input: formatted.clone(),
+                cell: "B2".to_owned(),
+            },
+            &ExecutionContext::new(),
+        )
+        .expect("format check");
+    assert_eq!(check.data["format"], "DATE dd/mm/yyyy");
+
+    // to-number：把 "6,000.00" 文本转数值
+    let numbered = directory.path().join("numbered.xlsx");
+    let result = executor
+        .execute(
+            CommandRequest::ToNumber {
+                input: formatted,
+                range: "A2:A3".to_owned(),
+                sheet: None,
+                output: Some(numbered.clone()),
+            },
+            &ExecutionContext::new(),
+        )
+        .expect("to-number");
+    assert_eq!(result.data["converted"], 1);
+    let readback = executor
+        .execute(
+            CommandRequest::Get {
+                input: numbered.clone(),
+                range: Some("Table1!A2:A2".to_owned()),
+                output_format: OutputFormat::Json,
+            },
+            &ExecutionContext::new(),
+        )
+        .expect("read back");
+    assert_eq!(readback.data["rows"][0][0].as_f64(), Some(6000.0));
+
+    // to-date：把文本日期转日期序列
+    let dated = directory.path().join("dated.xlsx");
+    let result = executor
+        .execute(
+            CommandRequest::ToDate {
+                input: numbered,
+                range: "B2:B3".to_owned(),
+                format: "dd/mm/yyyy".to_owned(),
+                sheet: None,
+                output: Some(dated.clone()),
+            },
+            &ExecutionContext::new(),
+        )
+        .expect("to-date");
+    assert_eq!(result.data["converted"], 2);
+
+    // autofit
+    let fitted = directory.path().join("fitted.xlsx");
+    let result = executor
+        .execute(
+            CommandRequest::Autofit {
+                input: dated,
+                columns: None,
+                sheet: None,
+                output: Some(fitted),
+            },
+            &ExecutionContext::new(),
+        )
+        .expect("autofit");
+    assert_eq!(result.data["columns"], 2);
+}
+
+#[test]
 fn query_engine_is_available_through_command_contract() {
     let directory = tempfile::tempdir().expect("temp directory");
     let markdown = directory.path().join("query.md");

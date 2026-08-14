@@ -362,6 +362,50 @@ pub(crate) enum Commands {
         #[arg(long, short = 's')]
         sheet: Option<String>,
     },
+    /// 为范围设置数字格式代码。
+    FormatSet {
+        input: PathBuf,
+        /// 单元格或范围，如 `C2` 或 `C2:C154`。
+        range: String,
+        /// Excel 数字格式代码。
+        code: String,
+        #[arg(long, short = 's')]
+        sheet: Option<String>,
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+    },
+    /// 把范围内文本存储的数字强制转换为数值。
+    ToNumber {
+        input: PathBuf,
+        range: String,
+        #[arg(long, short = 's')]
+        sheet: Option<String>,
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+    },
+    /// 把范围内文本日期解析为日期序列并应用格式。
+    ToDate {
+        input: PathBuf,
+        range: String,
+        /// 源文本的日期格式，如 `dd/mm/yyyy`。
+        #[arg(long = "format")]
+        format: String,
+        #[arg(long, short = 's')]
+        sheet: Option<String>,
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+    },
+    /// 按内容自适应列宽。
+    Autofit {
+        input: PathBuf,
+        /// 列范围（如 `A:C`）；缺省全部列。
+        #[arg(long)]
+        columns: Option<String>,
+        #[arg(long, short = 's')]
+        sheet: Option<String>,
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+    },
     /// 输出机器可读能力清单。
     Capabilities,
     /// 输出指定命令的 JSON Schema。
