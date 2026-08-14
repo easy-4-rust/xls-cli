@@ -1433,7 +1433,10 @@ fn name(
 }
 
 /// 管理 Excel 表格对象：List 为读，Add/Remove 走 mutate 管道。
-#[allow(clippy::too_many_lines, reason = "三子动作集中维护，拆散削弱协议审计性")]
+#[allow(
+    clippy::too_many_lines,
+    reason = "三子动作集中维护，拆散削弱协议审计性"
+)]
 fn table(
     path: &Path,
     action: crate::TableAction,
