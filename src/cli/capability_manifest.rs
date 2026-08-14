@@ -72,10 +72,10 @@ impl CapabilityManifest {
             CommandName::Recalc,
             CommandName::Capabilities,
             CommandName::Schema,
+            CommandName::Grep,
         ];
         const TERMINAL_ONLY: &[CommandName] = &[
             CommandName::Open,
-            CommandName::Grep,
             CommandName::Profile,
             CommandName::Copy,
             CommandName::Move,

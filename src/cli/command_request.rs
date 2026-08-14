@@ -142,6 +142,12 @@ pub enum CommandRequest {
     Capabilities,
     /// 返回指定命令的 JSON Schema。
     Schema { target: CommandName },
+    /// 在工作簿显示值中做大小写不敏感的子串搜索，返回命中单元格清单。
+    Grep {
+        input: PathBuf,
+        pattern: String,
+        sheet: Option<String>,
+    },
     /// 已进入协议但尚未迁入生产实现的命令。
     Planned {
         command_name: CommandName,
@@ -177,6 +183,7 @@ impl CommandRequest {
             Self::Recalc { .. } => CommandName::Recalc,
             Self::Capabilities => CommandName::Capabilities,
             Self::Schema { .. } => CommandName::Schema,
+            Self::Grep { .. } => CommandName::Grep,
             Self::Planned { command_name, .. } => *command_name,
         }
     }

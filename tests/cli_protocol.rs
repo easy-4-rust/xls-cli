@@ -66,6 +66,34 @@ fn json_partial_commands_are_stable_unsupported_errors() {
 }
 
 #[test]
+fn grep_finds_case_insensitive_matches_with_addresses() {
+    let directory = tempfile::tempdir().expect("temp directory");
+    let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/tables.md");
+    let workbook_path = directory.path().join("tables.xlsx");
+    let fixture_text = fixture.to_string_lossy();
+    let workbook_text = workbook_path.to_string_lossy();
+    let import = run(&["import", &fixture_text, &workbook_text, "--json"]);
+    assert!(import.status.success());
+
+    let grep = run(&["grep", &workbook_text, "ALICE", "--json"]);
+    assert!(grep.status.success());
+    assert!(grep.stderr.is_empty());
+    let value: serde_json::Value = serde_json::from_slice(&grep.stdout).expect("grep JSON");
+    assert_eq!(value["command"], "grep");
+    let matches = value["data"]["matches"].as_array().expect("matches");
+    assert_eq!(matches.len(), 1, "命中 Alice 所在单元格");
+    assert_eq!(matches[0]["address"], "A2");
+    assert_eq!(matches[0]["value"], "Alice");
+    assert_eq!(value["stats"]["matches"], 1);
+
+    let miss = run(&["grep", &workbook_text, "no-such-token", "--json"]);
+    assert!(miss.status.success());
+    let miss_value: serde_json::Value = serde_json::from_slice(&miss.stdout).expect("grep JSON");
+    assert_eq!(miss_value["data"]["matches"].as_array().unwrap().len(), 0);
+    assert_eq!(miss_value["stats"]["matches"], 0);
+}
+
+#[test]
 fn markdown_task_chain_dry_runs_writes_and_reopens_output() {
     let directory = tempfile::tempdir().expect("temp directory");
     let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/tables.md");

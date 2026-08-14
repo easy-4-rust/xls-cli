@@ -234,6 +234,13 @@ pub(crate) enum Commands {
         #[arg(short, long)]
         output: Option<PathBuf>,
     },
+    /// 在工作簿显示值中做大小写不敏感的子串搜索。
+    Grep {
+        input: PathBuf,
+        pattern: String,
+        #[arg(long, short = 's')]
+        sheet: Option<String>,
+    },
     /// 输出机器可读能力清单。
     Capabilities,
     /// 输出指定命令的 JSON Schema。

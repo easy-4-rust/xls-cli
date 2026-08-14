@@ -205,6 +205,15 @@ pub(crate) fn into_request(command: Commands) -> Result<CommandRequest, String> 
         },
         Commands::Recalc { input, output } => CommandRequest::Recalc { input, output },
         Commands::Capabilities => CommandRequest::Capabilities,
+        Commands::Grep {
+            input,
+            pattern,
+            sheet,
+        } => CommandRequest::Grep {
+            input,
+            pattern,
+            sheet,
+        },
         Commands::Schema { target } => CommandRequest::Schema {
             target: parse_command_name(&target).ok_or_else(|| format!("未知命令名称：{target}"))?,
         },

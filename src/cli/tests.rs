@@ -173,6 +173,57 @@ fn existing_target_requires_explicit_replace_policy() {
 }
 
 #[test]
+fn grep_reports_matches_and_zero_hits_without_error() {
+    let directory = tempfile::tempdir().expect("temp directory");
+    let markdown = directory.path().join("input.md");
+    let workbook = directory.path().join("book.xlsx");
+    fs::write(
+        &markdown,
+        "| name | amount |\n| --- | ---: |\n| Alice | 42 |\n| Bob | 7 |\n",
+    )
+    .expect("write fixture");
+    let executor = DefaultCommandExecutor::new();
+    executor
+        .execute(
+            CommandRequest::Import {
+                input: markdown,
+                output: workbook.clone(),
+                markdown_options: None,
+            },
+            &ExecutionContext::new(),
+        )
+        .expect("import markdown");
+    let hit = executor
+        .execute(
+            CommandRequest::Grep {
+                input: workbook.clone(),
+                pattern: "alice".to_owned(),
+                sheet: None,
+            },
+            &ExecutionContext::new(),
+        )
+        .expect("grep hit");
+    assert_eq!(hit.command, CommandName::Grep);
+    let matches = hit.data["matches"].as_array().expect("matches");
+    assert_eq!(matches.len(), 1);
+    assert_eq!(matches[0]["address"], "A2");
+    assert_eq!(matches[0]["value"], "Alice");
+    assert_eq!(hit.stats["matches"], 1);
+
+    let miss = executor
+        .execute(
+            CommandRequest::Grep {
+                input: workbook,
+                pattern: "no-such-token".to_owned(),
+                sheet: Some("Missing".to_owned()),
+            },
+            &ExecutionContext::new(),
+        )
+        .expect_err("sheet 不存在应报错");
+    assert_eq!(miss.code, ErrorCode::SheetNotFound);
+}
+
+#[test]
 fn query_engine_is_available_through_command_contract() {
     let directory = tempfile::tempdir().expect("temp directory");
     let markdown = directory.path().join("query.md");

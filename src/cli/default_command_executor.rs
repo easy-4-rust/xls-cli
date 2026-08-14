@@ -258,12 +258,73 @@ impl CommandExecutor for DefaultCommandExecutor {
                 command_schema(target),
                 is_dry_run(context),
             )),
+            CommandRequest::Grep {
+                input,
+                pattern,
+                sheet,
+            } => grep(&input, &pattern, sheet.as_deref(), context),
             CommandRequest::Planned { command_name, .. } => Err(CommandError::new(
                 ErrorCode::UnsupportedCommand,
                 format!("当前版本尚不支持命令：{}", command_name.as_str()),
             )),
         }
     }
+}
+
+/// 解析目标工作表：指定名称时要求存在；未指定时沿用活跃表（与终端 `grep` 一致）。
+fn resolve_sheet_index(
+    workbook: &Workbook,
+    sheet: Option<&str>,
+) -> Result<usize, CommandError> {
+    match sheet {
+        Some(name) => workbook.sheet_index(name).ok_or_else(|| {
+            CommandError::new(ErrorCode::SheetNotFound, format!("工作表不存在：{name}"))
+        }),
+        None => Ok(workbook
+            .active_sheet
+            .min(workbook.sheets.len().saturating_sub(1))),
+    }
+}
+
+/// 在工作簿显示值中做大小写不敏感的子串搜索，返回命中单元格清单。
+fn grep(
+    path: &Path,
+    pattern: &str,
+    sheet: Option<&str>,
+    context: &ExecutionContext,
+) -> Result<CommandResult, CommandError> {
+    let workbook = open_workbook(path, context)?;
+    let index = resolve_sheet_index(&workbook, sheet)?;
+    let sheet = &workbook.sheets[index];
+    let (rows, columns) = sheet.dimensions();
+    let needle = pattern.to_lowercase();
+    let sheet_name = sheet.name.clone();
+    let mut matches = Vec::new();
+    for row in 0..rows {
+        for column in 0..columns {
+            let value = workbook.display_cell(index, row, column);
+            if !value.is_empty() && value.to_lowercase().contains(&needle) {
+                matches.push(json!({
+                    "sheet": sheet_name,
+                    "address": format!(
+                        "{}{}",
+                        easyexcel::model::addr::col_index_to_letters(column),
+                        row + 1
+                    ),
+                    "value": value,
+                }));
+            }
+        }
+    }
+    let hit_count = matches.len();
+    let data = json!({
+        "pattern": pattern,
+        "sheet": sheet_name,
+        "matches": matches,
+    });
+    let mut result = CommandResult::new(CommandName::Grep, data, is_dry_run(context));
+    result.stats.insert("matches".to_owned(), hit_count as u64);
+    Ok(result)
 }
 
 fn info(path: &Path, context: &ExecutionContext) -> Result<CommandResult, CommandError> {
