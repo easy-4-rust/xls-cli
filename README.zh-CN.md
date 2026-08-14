@@ -20,7 +20,7 @@ npm 启动器 ──┘        └──> 交互式 TUI ───────> E
 | 需求 | xls-cli 提供的能力 | 责任边界 |
 |:---|:---|:---|
 | 新旧电子表格 | 读取和写入 XLS（BIFF8）、XLSX（OOXML）和 CSV | `xls-cli` 只依赖 `easyexcel` 门面；格式引擎保持为 EasyExcel-Rust 内部实现。 |
-| 真实公式 | 词法/语法解析、依赖重算、循环引用检测、动态数组和 `LAMBDA` 系列函数 | `easyexcel::formula` 负责求值；`xls-cli` 暴露 `recalc` 和迁移终端 `eval`。 |
+| 真实公式 | 词法/语法解析、依赖重算、循环引用检测、动态数组和 `LAMBDA` 系列函数 | `easyexcel::formula` 负责求值；`xls-cli` 暴露 `recalc` 与结构化 `eval`。 |
 | 往返编辑 | 单元格、样式、数字格式、合并、冻结窗格、名称和表格 | 保真度取决于格式，生成后必须重新打开验证。 |
 | 智能体安全自动化 | 版本化 JSON、能力探测、稳定错误、dry-run、资源限制和显式覆盖 | 结构化协议归 `src/cli` 所有；`partial` 终端命令不属于该契约。 |
 | 人类电子表格操作 | 同一原生二进制中的鼠标感知、Vim 风格 TUI | TUI 状态只存在于当前进程和文件会话。 |
@@ -63,7 +63,8 @@ flowchart LR
 | 交换格式 | `convert`、`import`、`export` | `supported` | `xls import tables.md report.xlsx --dry-run --json` |
 | 检查协议 | `capabilities`、`schema --command NAME` | `supported` | `xls schema --command get --json` |
 | 交互工作簿 | `open` 或工作簿路径 | `partial` | `xls open report.xlsx` |
-| 高级终端操作 | `grep`、`profile`、`copy`、`move`、`append`、`filter`、`sort`、`dedup`、`join`、`pivot`、`diff`、`format`、`format-set`、`to-number`、`to-date`、`style`、`autofit`、`batch`、`name`、`table`、`eval` | `partial` | `xls pivot report.xlsx --help` |
+| 搜索/画像/计算 | `grep`、`profile`、`eval`、`format` | `supported` | `xls grep report.xlsx ZANMAI --json` |
+| 高级终端操作 | `copy`、`move`、`append`、`filter`、`sort`、`dedup`、`join`、`pivot`、`diff`、`format-set`、`to-number`、`to-date`、`style`、`autofit`、`batch`、`name`、`table` | `partial` | `xls pivot report.xlsx --help` |
 
 `partial` 表示存在已迁移的人类终端实现，并不表示存在结构化 result contract。为避免智能体误用，传入 `--json` 会明确返回 `UNSUPPORTED_COMMAND`；不得解析人类终端文本作为替代 API。
 
@@ -204,10 +205,10 @@ xls schema --command export --json
 | 首尾若干行 | `xls head report.xlsx -n 20 --json` / `xls tail report.xlsx -n 20 --json` | 结构化，supported |
 | 人类表格/CSV/TSV/JSONL/Markdown | `xls get report.xlsx 'A1:J200' --format jsonl --header` | 迁移终端 |
 | 原始值和日期表达 | `xls get report.xlsx 'A1:J200' --raw --dates iso` | 迁移终端 |
-| 标量或数组公式求值 | `xls eval report.xlsx '=AVERAGE(A1:A10)'` | 迁移终端，partial |
-| 检查数字格式 | `xls format report.xlsx C2` | 迁移终端，partial |
-| 搜索单元格 | `xls grep report.xlsx ZANMAI` | 迁移终端，partial |
-| 列质量画像 | `xls profile report.xlsx amount` | 迁移终端，partial |
+| 单元格或数组公式求值 | `xls eval report.xlsx '=AVERAGE(A1:A10)' --json` | 结构化，`data.value` / `data.grid` |
+| 检查数字格式 | `xls format report.xlsx C2 --json` | 结构化，`data.format` |
+| 搜索单元格 | `xls grep report.xlsx ZANMAI --json` | 结构化，`data.matches` |
+| 列质量画像 | `xls profile report.xlsx amount --json` | 结构化，统计 + 稳定警告 |
 | 比较工作簿 | `xls diff before.xlsx after.xlsx --key date` | 迁移终端，partial |
 
 终端 `get` 支持 `table`、`csv`、`tsv`、`json`、`jsonl`、`md`；`--header` 将第一行作为对象键或表头。`--raw` 关闭显示格式，`--dates iso|serial` 控制日期格式数值的表达。

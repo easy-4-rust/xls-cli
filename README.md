@@ -63,7 +63,8 @@ The binary's `xls capabilities --json` result is the source of truth. The follow
 | Exchange formats | `convert`, `import`, `export` | `supported` | `xls import tables.md report.xlsx --dry-run --json` |
 | Inspect protocol | `capabilities`, `schema --command NAME` | `supported` | `xls schema --command get --json` |
 | Work interactively | `open` or a workbook path | `partial` | `xls open report.xlsx` |
-| Advanced terminal operations | `grep`, `profile`, `copy`, `move`, `append`, `filter`, `sort`, `dedup`, `join`, `pivot`, `diff`, `format`, `format-set`, `to-number`, `to-date`, `style`, `autofit`, `batch`, `name`, `table`, `eval` | `partial` | `xls pivot report.xlsx --help` |
+| Search / profile / compute | `grep`, `profile`, `eval`, `format` | `supported` | `xls grep report.xlsx ZANMAI --json` |
+| Advanced terminal operations | `copy`, `move`, `append`, `filter`, `sort`, `dedup`, `join`, `pivot`, `diff`, `format-set`, `to-number`, `to-date`, `style`, `autofit`, `batch`, `name`, `table` | `partial` | `xls pivot report.xlsx --help` |
 
 `partial` means that a migrated human-terminal implementation exists, not that a structured result contract exists. `--json` intentionally returns `UNSUPPORTED_COMMAND` for those commands. Agent integrations must not parse human-oriented terminal output as an API substitute.
 
@@ -206,10 +207,10 @@ There are two output surfaces. Commands with `--json` use the stable structured 
 | First/last rows | `xls head report.xlsx -n 20 --json` / `xls tail report.xlsx -n 20 --json` | Structured, supported |
 | Human table/CSV/TSV/JSONL/Markdown output | `xls get report.xlsx 'A1:J200' --format jsonl --header` | Migrated terminal |
 | Raw values and date representation | `xls get report.xlsx 'A1:J200' --raw --dates iso` | Migrated terminal |
-| Evaluate a scalar or array formula | `xls eval report.xlsx '=AVERAGE(A1:A10)'` | Migrated terminal, partial |
-| Inspect number format | `xls format report.xlsx C2` | Migrated terminal, partial |
-| Search cells | `xls grep report.xlsx ZANMAI` | Migrated terminal, partial |
-| Column quality profile | `xls profile report.xlsx amount` | Migrated terminal, partial |
+| Evaluate a scalar or array formula | `xls eval report.xlsx '=AVERAGE(A1:A10)' --json` | Structured, `data.value` / `data.grid` |
+| Inspect number format | `xls format report.xlsx C2 --json` | Structured, `data.format` |
+| Search cells | `xls grep report.xlsx ZANMAI --json` | Structured, `data.matches` |
+| Column quality profile | `xls profile report.xlsx amount --json` | Structured, stats + stable warnings |
 | Compare workbooks | `xls diff before.xlsx after.xlsx --key date` | Migrated terminal, partial |
 
 Terminal `get` supports `table`, `csv`, `tsv`, `json`, `jsonl`, and `md`; `--header` uses the first row as object keys or labels. `--raw` suppresses display formatting, and `--dates iso|serial` controls date-formatted numeric cells.

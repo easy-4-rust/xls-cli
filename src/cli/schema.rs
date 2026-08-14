@@ -67,6 +67,47 @@ pub fn command_schema(command: CommandName) -> Value {
                 }),
             );
         }
+        CommandName::Grep => {
+            add_path(&mut properties, &mut required, "input");
+            properties.insert(
+                "pattern".to_owned(),
+                json!({"type": "string", "description": "大小写不敏感的子串"}),
+            );
+            required.push(json!("pattern"));
+            properties.insert(
+                "sheet".to_owned(),
+                json!({"type": ["string", "null"], "description": "缺省为活跃工作表"}),
+            );
+        }
+        CommandName::Profile => {
+            add_path(&mut properties, &mut required, "input");
+            properties.insert(
+                "column".to_owned(),
+                json!({"type": "string", "description": "表头名或列字母"}),
+            );
+            required.push(json!("column"));
+            properties.insert("sheet".to_owned(), json!({"type": ["string", "null"]}));
+        }
+        CommandName::Eval => {
+            add_path(&mut properties, &mut required, "input");
+            properties.insert(
+                "formula".to_owned(),
+                json!({"type": "string", "description": "如 =SUM(A1:A10)"}),
+            );
+            required.push(json!("formula"));
+            properties.insert(
+                "at".to_owned(),
+                json!({"type": ["string", "null"], "description": "[Sheet!]A1 相对引用上下文"}),
+            );
+        }
+        CommandName::Format => {
+            add_path(&mut properties, &mut required, "input");
+            properties.insert(
+                "cell".to_owned(),
+                json!({"type": "string", "description": "如 C2 或 Sheet1!C2"}),
+            );
+            required.push(json!("cell"));
+        }
         CommandName::Capabilities => {}
         CommandName::Schema => {
             properties.insert("target".to_owned(), json!({"type": "string"}));

@@ -94,6 +94,42 @@ fn grep_finds_case_insensitive_matches_with_addresses() {
 }
 
 #[test]
+fn group1_read_verbs_return_structured_contracts() {
+    let directory = tempfile::tempdir().expect("temp directory");
+    let markdown = directory.path().join("group1.md");
+    let workbook_path = directory.path().join("group1.xlsx");
+    std::fs::write(
+        &markdown,
+        "| name | amount |\n| --- | ---: |\n| Alice | 42 |\n| Bob | 7 |\n",
+    )
+    .expect("fixture");
+    let markdown_text = markdown.to_string_lossy();
+    let workbook_text = workbook_path.to_string_lossy();
+    assert!(run(&["import", &markdown_text, &workbook_text, "--json"])
+        .status
+        .success());
+
+    let profile = run(&["profile", &workbook_text, "amount", "--json"]);
+    assert!(profile.status.success());
+    assert!(profile.stderr.is_empty());
+    let value: serde_json::Value = serde_json::from_slice(&profile.stdout).expect("JSON");
+    assert_eq!(value["command"], "profile");
+    assert_eq!(value["data"]["sum"], 49.0);
+
+    let eval = run(&["eval", &workbook_text, "=SUM(B2:B3)", "--json"]);
+    assert!(eval.status.success());
+    let value: serde_json::Value = serde_json::from_slice(&eval.stdout).expect("JSON");
+    assert_eq!(value["command"], "eval");
+    assert_eq!(value["data"]["value"], 49.0);
+
+    let format = run(&["format", &workbook_text, "B2", "--json"]);
+    assert!(format.status.success());
+    let value: serde_json::Value = serde_json::from_slice(&format.stdout).expect("JSON");
+    assert_eq!(value["command"], "format");
+    assert_eq!(value["data"]["format"], "GENERAL");
+}
+
+#[test]
 fn markdown_task_chain_dry_runs_writes_and_reopens_output() {
     let directory = tempfile::tempdir().expect("temp directory");
     let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/tables.md");

@@ -48,6 +48,10 @@ Apply these rules:
 | Goal | Structured commands | Notes |
 |---|---|---|
 | Inspect | `info`, `get`, `head`, `tail` | Use a narrow range after discovering sheet names. |
+| Search cells | `grep` | Case-insensitive substring over displayed values; matches carry addresses. |
+| Column quality | `profile` | Column stats plus `NUMBERS_STORED_AS_TEXT` / `DATES_STORED_AS_TEXT` warnings. |
+| Compute | `eval` | Single formula; scalars return `data.value`, arrays return `data.grid`. |
+| Number format | `format` | Cell number-format category and code. |
 | Query | `query` | Read-only SQL; sheets are tables and row 0 is the header. |
 | Edit cells | `set`, `clear`, `fill` | Provide `--output` unless creating a new workbook. |
 | Edit axes | `insert-row`, `delete-row`, `insert-col`, `delete-col` | CLI positions are zero-based. |
@@ -57,7 +61,7 @@ Apply these rules:
 | Export tables | `export` | Markdown/HTML/JSON/CSV/TSV output. |
 | Discover protocol | `capabilities`, `schema` | Runtime truth; do not cache indefinitely. |
 
-Do not use `open`, `grep`, `profile`, `copy`, `move`, `append`, `filter`, `sort`, `dedup`, `join`, `pivot`, `diff`, `format`, `format-set`, `to-number`, `to-date`, `style`, `autofit`, `batch`, `name`, `table`, or `eval` when capability marks them `partial`, unless the user explicitly requests a human-operated terminal workflow.
+Do not use `open`, `copy`, `move`, `append`, `filter`, `sort`, `dedup`, `join`, `pivot`, `diff`, `format-set`, `to-number`, `to-date`, `style`, `autofit`, `batch`, `name`, or `table` when capability marks them `partial`, unless the user explicitly requests a human-operated terminal workflow.
 
 ## Inspect and extract data
 
