@@ -21,11 +21,25 @@ fn capabilities_are_machine_readable_and_truthful() {
         result.data["markdown"]["streamingExport"],
         serde_json::json!(["xlsx", "csv"])
     );
-    assert!(
-        commands
-            .iter()
-            .any(|entry| { entry["command"] == "pivot" && entry["status"] == "partial" })
-    );
+    // 元契约：partial 集中的每个命令名都必须能 round-trip 为 CommandName，
+    // 防止能力清单与命令路由出现拼写/命名漂移。动词提升后集合收缩，断言自动适应。
+    let partial: Vec<String> = commands
+        .iter()
+        .filter(|entry| entry["status"] == "partial")
+        .map(|entry| {
+            entry["command"]
+                .as_str()
+                .expect("command name is a string")
+                .to_owned()
+        })
+        .collect();
+    for name in &partial {
+        let parsed: Result<CommandName, _> = serde_json::from_str(&format!("\"{name}\""));
+        assert!(
+            parsed.is_ok(),
+            "partial 命令名 `{name}` 无法反序列化为 CommandName"
+        );
+    }
 }
 
 #[test]
@@ -52,15 +66,29 @@ fn markdown_dry_run_validates_without_creating_output() {
 
 #[test]
 fn planned_command_never_silently_degrades() {
+    // 动态选取：优先用 capabilities 中仍在 partial 集的命令；全部提升后
+    // 退回 Pivot 占位，保证 Planned 路径本身的行为始终被覆盖。
+    let capabilities = DefaultCommandExecutor::new()
+        .execute(CommandRequest::Capabilities, &ExecutionContext::new())
+        .expect("capabilities");
+    let partial_name = capabilities.data["commands"]
+        .as_array()
+        .expect("commands array")
+        .iter()
+        .find(|entry| entry["status"] == "partial")
+        .and_then(|entry| entry["command"].as_str())
+        .map(|name| serde_json::from_str::<CommandName>(&format!("\"{name}\"")))
+        .and_then(Result::ok);
+    let command_name = partial_name.unwrap_or(CommandName::Pivot);
     let error = DefaultCommandExecutor::new()
         .execute(
             CommandRequest::Planned {
-                command_name: CommandName::Pivot,
+                command_name,
                 arguments: Value::Null,
             },
             &ExecutionContext::new(),
         )
-        .expect_err("pivot is not implemented");
+        .expect_err("planned command is not implemented");
     assert_eq!(error.code, ErrorCode::UnsupportedCommand);
 }
 

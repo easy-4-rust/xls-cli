@@ -20,13 +20,49 @@ fn json_success_uses_stdout_only() {
     assert_eq!(value["schema_version"]["major"], 1);
 }
 
+/// 元契约：capabilities 声明为 `partial` 的每个命令，其 `--json` 调用必须返回
+/// 稳定错误（退出码 3 + `UNSUPPORTED_COMMAND`）且 stderr 保持为空。
+/// 动词提升为 supported 后自动脱离本断言，无需逐动词修改。
 #[test]
-fn json_unsupported_error_is_stable_and_uses_stdout_only() {
-    let output = run(&["pivot", "--json"]);
-    assert_eq!(output.status.code(), Some(3));
-    assert!(output.stderr.is_empty());
-    let value: serde_json::Value = serde_json::from_slice(&output.stdout).expect("JSON error");
-    assert_eq!(value["error"]["code"], "UNSUPPORTED_COMMAND");
+fn json_partial_commands_are_stable_unsupported_errors() {
+    let capabilities = run(&["capabilities", "--json"]);
+    assert!(capabilities.status.success());
+    let value: serde_json::Value =
+        serde_json::from_slice(&capabilities.stdout).expect("capabilities JSON");
+    let partial: Vec<String> = value["data"]["commands"]
+        .as_array()
+        .expect("commands array")
+        .iter()
+        .filter(|entry| entry["status"] == "partial")
+        .map(|entry| {
+            entry["command"]
+                .as_str()
+                .expect("command name is a string")
+                .to_owned()
+        })
+        .collect();
+    assert!(
+        !partial.is_empty(),
+        "partial 集为空：全部命令已提升为 supported，请将本测试改为断言全集 supported"
+    );
+    for command in &partial {
+        let output = run(&[command.as_str(), "--json"]);
+        assert_eq!(
+            output.status.code(),
+            Some(3),
+            "partial 命令 `{command}` 的 --json 退出码应为 3"
+        );
+        assert!(
+            output.stderr.is_empty(),
+            "partial 命令 `{command}` 的 stderr 应为空"
+        );
+        let error: serde_json::Value =
+            serde_json::from_slice(&output.stdout).expect("JSON error");
+        assert_eq!(
+            error["error"]["code"], "UNSUPPORTED_COMMAND",
+            "partial 命令 `{command}` 的错误码"
+        );
+    }
 }
 
 #[test]
