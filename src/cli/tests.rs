@@ -542,6 +542,84 @@ fn dedup_removes_duplicate_rows_by_key() {
 }
 
 #[test]
+fn copy_and_move_ranges_with_readback() {
+    let directory = tempfile::tempdir().expect("temp directory");
+    let markdown = directory.path().join("input.md");
+    let workbook = directory.path().join("book.xlsx");
+    fs::write(
+        &markdown,
+        "| name | amount |\n| --- | ---: |\n| Alice | 42 |\n",
+    )
+    .expect("write fixture");
+    let executor = DefaultCommandExecutor::new();
+    executor
+        .execute(
+            CommandRequest::Import {
+                input: markdown,
+                output: workbook.clone(),
+                markdown_options: None,
+            },
+            &ExecutionContext::new(),
+        )
+        .expect("import markdown");
+
+    let copied = directory.path().join("copied.xlsx");
+    let result = executor
+        .execute(
+            CommandRequest::Copy {
+                input: workbook.clone(),
+                source: "A2:B2".to_owned(),
+                target: "A5".to_owned(),
+                sheet: None,
+                output: Some(copied.clone()),
+            },
+            &ExecutionContext::new(),
+        )
+        .expect("copy");
+    assert_eq!(result.command, CommandName::Copy);
+    assert_eq!(result.data["cells"], 2);
+    let readback = executor
+        .execute(
+            CommandRequest::Get {
+                input: copied,
+                range: Some("Table1!A5".to_owned()),
+                output_format: OutputFormat::Json,
+            },
+            &ExecutionContext::new(),
+        )
+        .expect("read back copy");
+    assert_eq!(readback.data["rows"][0][0], "Alice");
+
+    let moved = directory.path().join("moved.xlsx");
+    let result = executor
+        .execute(
+            CommandRequest::Move {
+                input: workbook,
+                source: "A2:B2".to_owned(),
+                target: "A6".to_owned(),
+                sheet: None,
+                output: Some(moved.clone()),
+            },
+            &ExecutionContext::new(),
+        )
+        .expect("move");
+    assert_eq!(result.data["cells"], 2);
+    let readback = executor
+        .execute(
+            CommandRequest::Get {
+                input: moved,
+                range: Some("Table1!A2:B6".to_owned()),
+                output_format: OutputFormat::Json,
+            },
+            &ExecutionContext::new(),
+        )
+        .expect("read back move");
+    // 源已清空（Empty→null），目标有值
+    assert_eq!(readback.data["rows"][0][0], Value::Null);
+    assert_eq!(readback.data["rows"][4][0], "Alice");
+}
+
+#[test]
 fn query_engine_is_available_through_command_contract() {
     let directory = tempfile::tempdir().expect("temp directory");
     let markdown = directory.path().join("query.md");

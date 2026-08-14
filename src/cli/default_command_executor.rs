@@ -296,6 +296,24 @@ impl CommandExecutor for DefaultCommandExecutor {
             } => mutate(&input, output, context, command, |workbook| {
                 dedup_workbook(workbook, &on, sheet.as_deref())
             }),
+            CommandRequest::Copy {
+                input,
+                source,
+                target,
+                sheet,
+                output,
+            } => mutate(&input, output, context, command, |workbook| {
+                copy_move_workbook(workbook, &source, &target, sheet.as_deref(), false)
+            }),
+            CommandRequest::Move {
+                input,
+                source,
+                target,
+                sheet,
+                output,
+            } => mutate(&input, output, context, command, |workbook| {
+                copy_move_workbook(workbook, &source, &target, sheet.as_deref(), true)
+            }),
             CommandRequest::Planned { command_name, .. } => Err(CommandError::new(
                 ErrorCode::UnsupportedCommand,
                 format!("当前版本尚不支持命令：{}", command_name.as_str()),
@@ -728,6 +746,49 @@ fn dedup_workbook(
     Ok(json!({
         "removed": removed,
         "remaining": remaining,
+    }))
+}
+
+/// 把范围（逐字快照）复制到目标锚点；`cut` 为真时清空源范围。
+fn copy_move_workbook(
+    workbook: &mut Workbook,
+    source: &str,
+    target: &str,
+    sheet: Option<&str>,
+    cut: bool,
+) -> Result<Value, CommandError> {
+    let selection = resolve_selection(workbook, Some(source), sheet)?;
+    let anchor = easyexcel::model::CellAddress::parse_a1(target).ok_or_else(|| {
+        CommandError::new(ErrorCode::InvalidArgument, format!("无效的目标单元格：{target}"))
+    })?;
+    let range = selection.range;
+    let index = selection.sheet_index;
+    let mut payload = Vec::new();
+    for (row, column) in range.iter_cells() {
+        if let Some(cell) = workbook.sheets[index].get(row, column) {
+            payload.push((
+                row - range.start.row,
+                column - range.start.col,
+                cell.clone(),
+            ));
+        }
+    }
+    let cells = payload.len();
+    if cut {
+        workbook.sheets[index].clear_range(range);
+    }
+    for (row_offset, column_offset, cell) in payload {
+        workbook.sheets[index].set(
+            anchor.row + row_offset,
+            anchor.col + column_offset,
+            cell,
+        );
+    }
+    Engine::new().recalc(workbook);
+    Ok(json!({
+        "source": source,
+        "target": target,
+        "cells": cells,
     }))
 }
 

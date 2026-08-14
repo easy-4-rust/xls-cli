@@ -239,6 +239,32 @@ pub(crate) fn into_request(command: Commands) -> Result<CommandRequest, String> 
             sheet,
             output,
         },
+        Commands::Copy {
+            input,
+            src,
+            dest,
+            sheet,
+            output,
+        } => CommandRequest::Copy {
+            input,
+            source: src,
+            target: dest,
+            sheet,
+            output,
+        },
+        Commands::Move {
+            input,
+            src,
+            dest,
+            sheet,
+            output,
+        } => CommandRequest::Move {
+            input,
+            source: src,
+            target: dest,
+            sheet,
+            output,
+        },
         Commands::Eval {
             input,
             formula,

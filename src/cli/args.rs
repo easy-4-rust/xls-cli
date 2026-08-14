@@ -292,6 +292,30 @@ pub(crate) enum Commands {
         #[arg(short, long)]
         output: Option<PathBuf>,
     },
+    /// 把范围复制到目标锚点单元格。
+    Copy {
+        input: PathBuf,
+        /// 源范围，如 `A1:B3`。
+        src: String,
+        /// 目标左上角单元格，如 `D1`。
+        dest: String,
+        #[arg(long, short = 's')]
+        sheet: Option<String>,
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+    },
+    /// 把范围移动到目标锚点单元格（复制后清空源）。
+    Move {
+        input: PathBuf,
+        /// 源范围，如 `A1:B3`。
+        src: String,
+        /// 目标左上角单元格，如 `D1`。
+        dest: String,
+        #[arg(long, short = 's')]
+        sheet: Option<String>,
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+    },
     /// 输出机器可读能力清单。
     Capabilities,
     /// 输出指定命令的 JSON Schema。

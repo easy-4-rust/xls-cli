@@ -186,6 +186,22 @@ pub enum CommandRequest {
         sheet: Option<String>,
         output: Option<PathBuf>,
     },
+    /// 把范围复制到目标锚点单元格。
+    Copy {
+        input: PathBuf,
+        source: String,
+        target: String,
+        sheet: Option<String>,
+        output: Option<PathBuf>,
+    },
+    /// 把范围移动到目标锚点单元格（复制后清空源）。
+    Move {
+        input: PathBuf,
+        source: String,
+        target: String,
+        sheet: Option<String>,
+        output: Option<PathBuf>,
+    },
     /// 已进入协议但尚未迁入生产实现的命令。
     Planned {
         command_name: CommandName,
@@ -228,6 +244,8 @@ impl CommandRequest {
             Self::Filter { .. } => CommandName::Filter,
             Self::Sort { .. } => CommandName::Sort,
             Self::Dedup { .. } => CommandName::Dedup,
+            Self::Copy { .. } => CommandName::Copy,
+            Self::Move { .. } => CommandName::Move,
             Self::Planned { command_name, .. } => *command_name,
         }
     }
