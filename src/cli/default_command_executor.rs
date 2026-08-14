@@ -268,6 +268,11 @@ impl CommandExecutor for DefaultCommandExecutor {
                 column,
                 sheet,
             } => profile(&input, &column, sheet.as_deref(), context),
+            CommandRequest::Eval {
+                input,
+                formula,
+                at,
+            } => eval(&input, &formula, at.as_deref(), context),
             CommandRequest::Planned { command_name, .. } => Err(CommandError::new(
                 ErrorCode::UnsupportedCommand,
                 format!("当前版本尚不支持命令：{}", command_name.as_str()),
@@ -446,6 +451,99 @@ fn profile(
         ));
     }
     Ok(result)
+}
+
+/// 把公式求值结果转成 JSON 标量（复用单元格值的 JSON 映射）。
+fn formula_value_json(value: &easyexcel::formula::Value) -> Value {
+    cell_value_json(&value.clone().to_cell_value())
+}
+
+/// 解析 `[Sheet!]A1` 单元格上下文；sheet 名未命中时回退到第 0 张表（与终端一致）。
+fn parse_cell_context(workbook: &Workbook, specification: &str) -> Result<easyexcel::formula::CellRef, CommandError> {
+    let (sheet, a1) = specification.rsplit_once('!').map_or((0usize, specification), |(sheet, a1)| {
+        (
+            workbook
+                .sheet_index(sheet.trim_matches('\''))
+                .unwrap_or(0),
+            a1,
+        )
+    });
+    let address = easyexcel::model::CellAddress::parse_a1(a1).ok_or_else(|| {
+        CommandError::new(ErrorCode::InvalidArgument, format!("无效的单元格引用：{a1}"))
+    })?;
+    Ok(easyexcel::formula::CellRef {
+        sheet,
+        row: address.row,
+        col: address.col,
+    })
+}
+
+/// 对工作簿数据求值单条公式；先重算保证引用值最新，数组结果以网格返回。
+fn eval(
+    path: &Path,
+    formula: &str,
+    at: Option<&str>,
+    context: &ExecutionContext,
+) -> Result<CommandResult, CommandError> {
+    let mut workbook = open_workbook(path, context)?;
+    Engine::new().recalc(&mut workbook);
+    let at_ref = match at {
+        Some(specification) => parse_cell_context(&workbook, specification)?,
+        None => easyexcel::formula::CellRef {
+            sheet: 0,
+            row: 0,
+            col: 0,
+        },
+    };
+    let value = Engine::new().eval_formula(&workbook, at_ref, formula);
+    let mut data = json!({
+        "formula": formula,
+        "at": format!("{}!{}", workbook.sheets[at_ref.sheet].name, easyexcel::model::addr::col_index_to_letters(at_ref.col) + &(at_ref.row + 1).to_string()),
+    });
+    match &value {
+        easyexcel::formula::Value::Array(array) => {
+            let grid = (0..array.rows)
+                .map(|row| {
+                    (0..array.cols)
+                        .map(|column| {
+                            formula_value_json(&array.data[row * array.cols + column])
+                        })
+                        .collect::<Vec<_>>()
+                })
+                .collect::<Vec<_>>();
+            data["grid"] = json!(grid);
+        }
+        easyexcel::formula::Value::Ref(range) => {
+            let cols = range.cols() as usize;
+            let mut grid: Vec<Vec<Value>> = Vec::new();
+            let mut line: Vec<Value> = Vec::with_capacity(cols);
+            for (row, column) in range.iter() {
+                if line.len() == cols {
+                    grid.push(std::mem::take(&mut line));
+                }
+                let cell = workbook
+                    .sheets
+                    .get(range.sheet)
+                    .map_or(
+                        easyexcel::model::value::CellValue::Empty,
+                        |sheet| sheet.value(row, column),
+                    );
+                line.push(cell_value_json(&cell));
+            }
+            if !line.is_empty() {
+                grid.push(line);
+            }
+            data["grid"] = json!(grid);
+        }
+        _ => {
+            data["value"] = formula_value_json(&value);
+        }
+    }
+    Ok(CommandResult::new(
+        CommandName::Eval,
+        data,
+        is_dry_run(context),
+    ))
 }
 
 fn info(path: &Path, context: &ExecutionContext) -> Result<CommandResult, CommandError> {

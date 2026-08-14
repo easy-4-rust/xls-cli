@@ -154,6 +154,12 @@ pub enum CommandRequest {
         column: String,
         sheet: Option<String>,
     },
+    /// 对工作簿数据求值单条公式；数组结果以网格返回。
+    Eval {
+        input: PathBuf,
+        formula: String,
+        at: Option<String>,
+    },
     /// 已进入协议但尚未迁入生产实现的命令。
     Planned {
         command_name: CommandName,
@@ -191,6 +197,7 @@ impl CommandRequest {
             Self::Schema { .. } => CommandName::Schema,
             Self::Grep { .. } => CommandName::Grep,
             Self::Profile { .. } => CommandName::Profile,
+            Self::Eval { .. } => CommandName::Eval,
             Self::Planned { command_name, .. } => *command_name,
         }
     }

@@ -74,6 +74,7 @@ impl CapabilityManifest {
             CommandName::Schema,
             CommandName::Grep,
             CommandName::Profile,
+            CommandName::Eval,
         ];
         const TERMINAL_ONLY: &[CommandName] = &[
             CommandName::Open,
@@ -95,7 +96,6 @@ impl CapabilityManifest {
             CommandName::Batch,
             CommandName::Name,
             CommandName::Table,
-            CommandName::Eval,
         ];
         let commands = SUPPORTED
             .iter()

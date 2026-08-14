@@ -248,6 +248,14 @@ pub(crate) enum Commands {
         #[arg(long, short = 's')]
         sheet: Option<String>,
     },
+    /// 对工作簿数据求值单条公式（数组结果以网格返回）。
+    Eval {
+        input: PathBuf,
+        formula: String,
+        /// 相对引用的单元格上下文（默认 Sheet1!A1）。
+        #[arg(long)]
+        at: Option<String>,
+    },
     /// 输出机器可读能力清单。
     Capabilities,
     /// 输出指定命令的 JSON Schema。

@@ -285,6 +285,55 @@ fn profile_reports_column_stats_and_text_storage_warnings() {
 }
 
 #[test]
+fn eval_computes_scalars_and_dynamic_array_grids() {
+    let directory = tempfile::tempdir().expect("temp directory");
+    let markdown = directory.path().join("input.md");
+    let workbook = directory.path().join("book.xlsx");
+    fs::write(
+        &markdown,
+        "| name | amount |\n| --- | ---: |\n| Alice | 42 |\n| Bob | 7 |\n",
+    )
+    .expect("write fixture");
+    let executor = DefaultCommandExecutor::new();
+    executor
+        .execute(
+            CommandRequest::Import {
+                input: markdown,
+                output: workbook.clone(),
+                markdown_options: None,
+            },
+            &ExecutionContext::new(),
+        )
+        .expect("import markdown");
+    let scalar = executor
+        .execute(
+            CommandRequest::Eval {
+                input: workbook.clone(),
+                formula: "=SUM(B2:B3)".to_owned(),
+                at: None,
+            },
+            &ExecutionContext::new(),
+        )
+        .expect("eval scalar");
+    assert_eq!(scalar.command, CommandName::Eval);
+    assert_eq!(scalar.data["formula"], "=SUM(B2:B3)");
+    assert_eq!(scalar.data["value"].as_f64(), Some(49.0));
+
+    let grid = executor
+        .execute(
+            CommandRequest::Eval {
+                input: workbook,
+                formula: "=SEQUENCE(2,2)".to_owned(),
+                at: Some("Table1!A1".to_owned()),
+            },
+            &ExecutionContext::new(),
+        )
+        .expect("eval grid");
+    assert_eq!(grid.data["grid"][0][0].as_f64(), Some(1.0));
+    assert_eq!(grid.data["grid"][1][1].as_f64(), Some(4.0));
+}
+
+#[test]
 fn query_engine_is_available_through_command_contract() {
     let directory = tempfile::tempdir().expect("temp directory");
     let markdown = directory.path().join("query.md");
