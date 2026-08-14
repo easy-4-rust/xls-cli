@@ -171,6 +171,21 @@ pub enum CommandRequest {
         predicate: String,
         sheet: Option<String>,
     },
+    /// 按键列稳定多键排序数据行（保留表头）。
+    Sort {
+        input: PathBuf,
+        by: Vec<String>,
+        desc: bool,
+        sheet: Option<String>,
+        output: Option<PathBuf>,
+    },
+    /// 按键列去重数据行（保留首见行）。
+    Dedup {
+        input: PathBuf,
+        on: Vec<String>,
+        sheet: Option<String>,
+        output: Option<PathBuf>,
+    },
     /// 已进入协议但尚未迁入生产实现的命令。
     Planned {
         command_name: CommandName,
@@ -211,6 +226,8 @@ impl CommandRequest {
             Self::Eval { .. } => CommandName::Eval,
             Self::Format { .. } => CommandName::Format,
             Self::Filter { .. } => CommandName::Filter,
+            Self::Sort { .. } => CommandName::Sort,
+            Self::Dedup { .. } => CommandName::Dedup,
             Self::Planned { command_name, .. } => *command_name,
         }
     }

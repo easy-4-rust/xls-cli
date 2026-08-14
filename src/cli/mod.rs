@@ -18,6 +18,7 @@ mod execution_context;
 mod markdown_capability;
 mod output_format;
 mod predicate;
+mod row_ops;
 mod query;
 mod render;
 mod request;

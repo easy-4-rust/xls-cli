@@ -204,7 +204,8 @@ pub(crate) fn mutation_target(
     if let Some(output) = output {
         return Ok(output);
     }
-    if context.overwrite() != OverwritePolicy::Replace {
+    if context.overwrite() != OverwritePolicy::Replace && !matches!(context.mode(), ExecutionMode::DryRun) {
+        // DryRun 允许就地预览：save_workbook 在 DryRun 下不会写盘。
         return Err(CommandError::new(
             ErrorCode::OverwriteDenied,
             "修改源文件必须显式允许覆盖，或提供输出文件",
@@ -233,7 +234,10 @@ pub(crate) fn detect_tabular_format(
 }
 
 fn validate_target(target: &Path, context: &ExecutionContext) -> Result<(), CommandError> {
-    if target.exists() && context.overwrite() != OverwritePolicy::Replace {
+    if target.exists()
+        && context.overwrite() != OverwritePolicy::Replace
+        && !matches!(context.mode(), ExecutionMode::DryRun)
+    {
         return Err(CommandError::new(
             ErrorCode::OverwriteDenied,
             format!("目标文件已存在：{}", target.display()),

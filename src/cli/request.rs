@@ -215,6 +215,30 @@ pub(crate) fn into_request(command: Commands) -> Result<CommandRequest, String> 
             predicate,
             sheet,
         },
+        Commands::Sort {
+            input,
+            by,
+            desc,
+            sheet,
+            output,
+        } => CommandRequest::Sort {
+            input,
+            by,
+            desc,
+            sheet,
+            output,
+        },
+        Commands::Dedup {
+            input,
+            on,
+            sheet,
+            output,
+        } => CommandRequest::Dedup {
+            input,
+            on,
+            sheet,
+            output,
+        },
         Commands::Eval {
             input,
             formula,

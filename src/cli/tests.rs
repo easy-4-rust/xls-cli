@@ -435,6 +435,113 @@ fn filter_returns_matching_rows_as_json() {
 }
 
 #[test]
+fn sort_reorders_rows_with_dry_run_and_readback() {
+    let directory = tempfile::tempdir().expect("temp directory");
+    let markdown = directory.path().join("input.md");
+    let workbook = directory.path().join("book.xlsx");
+    fs::write(
+        &markdown,
+        "| name | amount |\n| --- | ---: |\n| Alice | 42 |\n| Bob | 7 |\n| Carol | 99 |\n",
+    )
+    .expect("write fixture");
+    let executor = DefaultCommandExecutor::new();
+    executor
+        .execute(
+            CommandRequest::Import {
+                input: markdown,
+                output: workbook.clone(),
+                markdown_options: None,
+            },
+            &ExecutionContext::new(),
+        )
+        .expect("import markdown");
+
+    // dry-run：不落盘
+    let dry = executor
+        .execute(
+            CommandRequest::Sort {
+                input: workbook.clone(),
+                by: vec!["amount".to_owned()],
+                desc: false,
+                sheet: None,
+                output: None,
+            },
+            &ExecutionContext::new().with_mode(ExecutionMode::DryRun),
+        )
+        .expect("dry-run sort");
+    assert!(dry.dry_run);
+    assert!(!dry.files[0].written);
+
+    // apply：覆盖原文件需要 Replace；改用 --output 新文件
+    let sorted = directory.path().join("sorted.xlsx");
+    let result = executor
+        .execute(
+            CommandRequest::Sort {
+                input: workbook,
+                by: vec!["amount".to_owned()],
+                desc: false,
+                sheet: None,
+                output: Some(sorted.clone()),
+            },
+            &ExecutionContext::new(),
+        )
+        .expect("sort");
+    assert_eq!(result.command, CommandName::Sort);
+    assert_eq!(result.data["rows"], 3);
+    assert!(result.files[0].written);
+    let readback = executor
+        .execute(
+            CommandRequest::Get {
+                input: sorted,
+                range: Some("Table1!A2:B4".to_owned()),
+                output_format: OutputFormat::Json,
+            },
+            &ExecutionContext::new(),
+        )
+        .expect("read back");
+    assert_eq!(readback.data["rows"][0][0], "Bob");
+    assert_eq!(readback.data["rows"][2][0], "Carol");
+}
+
+#[test]
+fn dedup_removes_duplicate_rows_by_key() {
+    let directory = tempfile::tempdir().expect("temp directory");
+    let markdown = directory.path().join("input.md");
+    let workbook = directory.path().join("book.xlsx");
+    fs::write(
+        &markdown,
+        "| id | note |\n| --- | --- |\n| a | x |\n| b | y |\n| a | z |\n",
+    )
+    .expect("write fixture");
+    let executor = DefaultCommandExecutor::new();
+    executor
+        .execute(
+            CommandRequest::Import {
+                input: markdown,
+                output: workbook.clone(),
+                markdown_options: None,
+            },
+            &ExecutionContext::new(),
+        )
+        .expect("import markdown");
+    let deduped = directory.path().join("dedup.xlsx");
+    let result = executor
+        .execute(
+            CommandRequest::Dedup {
+                input: workbook,
+                on: vec!["id".to_owned()],
+                sheet: None,
+                output: Some(deduped),
+            },
+            &ExecutionContext::new(),
+        )
+        .expect("dedup");
+    assert_eq!(result.command, CommandName::Dedup);
+    assert_eq!(result.data["removed"], 1);
+    assert_eq!(result.data["remaining"], 2);
+}
+
+#[test]
 fn query_engine_is_available_through_command_contract() {
     let directory = tempfile::tempdir().expect("temp directory");
     let markdown = directory.path().join("query.md");

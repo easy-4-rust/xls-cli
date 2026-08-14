@@ -279,6 +279,23 @@ impl CommandExecutor for DefaultCommandExecutor {
                 predicate,
                 sheet,
             } => filter(&input, &predicate, sheet.as_deref(), context),
+            CommandRequest::Sort {
+                input,
+                by,
+                desc,
+                sheet,
+                output,
+            } => mutate(&input, output, context, command, |workbook| {
+                sort_workbook(workbook, &by, desc, sheet.as_deref())
+            }),
+            CommandRequest::Dedup {
+                input,
+                on,
+                sheet,
+                output,
+            } => mutate(&input, output, context, command, |workbook| {
+                dedup_workbook(workbook, &on, sheet.as_deref())
+            }),
             CommandRequest::Planned { command_name, .. } => Err(CommandError::new(
                 ErrorCode::UnsupportedCommand,
                 format!("当前版本尚不支持命令：{}", command_name.as_str()),
@@ -630,6 +647,88 @@ fn filter(
     let mut result = CommandResult::new(CommandName::Filter, data, is_dry_run(context));
     result.stats.insert("rows".to_owned(), hit_count as u64);
     Ok(result)
+}
+
+/// 按键列稳定多键排序数据行（表头保留），数值优先比较。
+fn sort_workbook(
+    workbook: &mut Workbook,
+    by: &[String],
+    desc: bool,
+    sheet: Option<&str>,
+) -> Result<Value, CommandError> {
+    let index = resolve_sheet_index(workbook, sheet)?;
+    let keys = by
+        .iter()
+        .map(|specification| resolve_column(workbook, index, specification))
+        .collect::<Result<Vec<_>, _>>()?;
+    let (rows, columns) = workbook.sheets[index].dimensions();
+    let data_rows = rows.saturating_sub(1);
+    if data_rows > 1 {
+        let mut snapshot =
+            crate::cli::row_ops::snapshot_rows(&workbook.sheets[index], 1, rows, columns);
+        snapshot.sort_by(|left, right| {
+            for &key in &keys {
+                let order = crate::cli::row_ops::cmp_values(
+                    &crate::cli::row_ops::display_of(&left.0, key),
+                    &crate::cli::row_ops::display_of(&right.0, key),
+                );
+                if order != std::cmp::Ordering::Equal {
+                    return if desc { order.reverse() } else { order };
+                }
+            }
+            std::cmp::Ordering::Equal
+        });
+        crate::cli::row_ops::rewrite_rows(&mut workbook.sheets[index], 1, rows, columns, snapshot);
+        Engine::new().recalc(workbook);
+    }
+    Ok(json!({
+        "sorted_by": by,
+        "descending": desc,
+        "rows": data_rows,
+    }))
+}
+
+/// 按键列去重数据行（保留首见行）；键缺省为整行显示值。
+fn dedup_workbook(
+    workbook: &mut Workbook,
+    on: &[String],
+    sheet: Option<&str>,
+) -> Result<Value, CommandError> {
+    let index = resolve_sheet_index(workbook, sheet)?;
+    let keys = on
+        .iter()
+        .map(|specification| resolve_column(workbook, index, specification))
+        .collect::<Result<Vec<_>, _>>()?;
+    let (rows, columns) = workbook.sheets[index].dimensions();
+    let data_rows = rows.saturating_sub(1);
+    let snapshot = crate::cli::row_ops::snapshot_rows(&workbook.sheets[index], 1, rows, columns);
+    let mut seen = std::collections::HashSet::new();
+    let mut kept = Vec::new();
+    let mut removed = 0u64;
+    for row in snapshot {
+        let signature = if keys.is_empty() {
+            (0..columns)
+                .map(|column| crate::cli::row_ops::display_of(&row.0, column))
+                .collect::<Vec<_>>()
+                .join("\u{1}")
+        } else {
+            keys.iter()
+                .map(|&column| crate::cli::row_ops::display_of(&row.0, column))
+                .collect::<Vec<_>>()
+                .join("\u{1}")
+        };
+        if seen.insert(signature) {
+            kept.push(row);
+        } else {
+            removed += 1;
+        }
+    }
+    crate::cli::row_ops::rewrite_rows(&mut workbook.sheets[index], 1, rows, columns, kept);
+    let remaining = u64::from(data_rows).saturating_sub(removed);
+    Ok(json!({
+        "removed": removed,
+        "remaining": remaining,
+    }))
 }
 
 fn info(path: &Path, context: &ExecutionContext) -> Result<CommandResult, CommandError> {

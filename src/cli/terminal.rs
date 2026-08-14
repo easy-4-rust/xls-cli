@@ -16,6 +16,7 @@ use super::easyexcel_components as core;
 use super::easyexcel_components::formula::{CellRef, Engine};
 use super::easyexcel_components::model::{Cell, Workbook};
 use super::predicate::Predicate;
+use super::row_ops::{cmp_values, copy_row, display_of, rewrite_rows, snapshot_rows};
 #[cfg(test)]
 use super::easyexcel_components::value::CellValue;
 use super::{render, stream};
@@ -2821,75 +2822,6 @@ fn row_values(wb: &Workbook, sheet_idx: usize, row: u32, ncols: u32) -> Vec<Stri
         .map(|c| wb.display_cell(sheet_idx, row, c))
         .collect()
 }
-
-/// A snapshot of one row: per-column cell and style index.
-type RowSnap = (Vec<Option<Cell>>, Vec<Option<u32>>);
-
-/// Snapshot data rows `start..end` (exclusive end) with their cells and styles.
-fn snapshot_rows(sheet: &core::Sheet, start: u32, end: u32, cols: u32) -> Vec<RowSnap> {
-    (start..end)
-        .map(|r| {
-            let cells = (0..cols).map(|c| sheet.get(r, c).cloned()).collect();
-            let styles = (0..cols).map(|c| sheet.style_at(r, c)).collect();
-            (cells, styles)
-        })
-        .collect()
-}
-
-/// Clear data rows `start..end` then write `snap` back consecutively from `start`.
-fn rewrite_rows(sheet: &mut core::Sheet, start: u32, end: u32, cols: u32, snap: Vec<RowSnap>) {
-    if cols == 0 || end <= start {
-        return;
-    }
-    let range = core::CellRange::new(
-        core::CellAddress::new(start, 0),
-        core::CellAddress::new(end - 1, cols - 1),
-    );
-    sheet.clear_range(range);
-    for (i, (cells, styles)) in snap.into_iter().enumerate() {
-        let r = start + i as u32;
-        for c in 0..cols as usize {
-            if let Some(cell) = &cells[c] {
-                sheet.set(r, c as u32, cell.clone());
-            }
-            if let Some(si) = styles[c] {
-                sheet.set_style(r, c as u32, si);
-            }
-        }
-    }
-}
-
-/// Display string of a snapshot row's column.
-fn display_of(cells: &[Option<Cell>], col: u32) -> String {
-    cells
-        .get(col as usize)
-        .and_then(|o| o.as_ref())
-        .map(|cell| cell.value().to_display_string())
-        .unwrap_or_default()
-}
-
-/// Order two display strings numerically when both parse as numbers, else lexically.
-fn cmp_values(a: &str, b: &str) -> std::cmp::Ordering {
-    match (a.parse::<f64>(), b.parse::<f64>()) {
-        (Ok(x), Ok(y)) => x.partial_cmp(&y).unwrap_or(std::cmp::Ordering::Equal),
-        _ => a.cmp(b),
-    }
-}
-
-/// Copy a row (cells + style indices) from `src` to `dst`. Style indices are
-/// assumed to share a table (callers clone `wb.styles` into the temp workbook).
-fn copy_row(src: &core::Sheet, dst: &mut core::Sheet, src_r: u32, dst_r: u32, cols: u32) {
-    for c in 0..cols {
-        if let Some(cell) = src.get(src_r, c) {
-            dst.set(dst_r, c, cell.clone());
-        }
-        if let Some(si) = src.style_at(src_r, c) {
-            dst.set_style(dst_r, c, si);
-        }
-    }
-}
-
-
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
 

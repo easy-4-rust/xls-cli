@@ -268,6 +268,30 @@ pub(crate) enum Commands {
         #[arg(long, short = 's')]
         sheet: Option<String>,
     },
+    /// 按键列稳定多键排序数据行（保留表头）。
+    Sort {
+        input: PathBuf,
+        /// 排序键列（字母或表头名），可重复。
+        #[arg(long, required = true)]
+        by: Vec<String>,
+        #[arg(long)]
+        desc: bool,
+        #[arg(long, short = 's')]
+        sheet: Option<String>,
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+    },
+    /// 按键列去重数据行（保留首见行）。
+    Dedup {
+        input: PathBuf,
+        /// 键列（字母或表头名），可重复；缺省整行。
+        #[arg(long = "on")]
+        on: Vec<String>,
+        #[arg(long, short = 's')]
+        sheet: Option<String>,
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+    },
     /// 输出机器可读能力清单。
     Capabilities,
     /// 输出指定命令的 JSON Schema。
