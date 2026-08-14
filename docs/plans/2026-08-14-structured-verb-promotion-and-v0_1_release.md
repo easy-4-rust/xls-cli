@@ -68,24 +68,24 @@ openclaw/Hermes 等智能体通过 SKILL.md 无禁用清单地安全使用全部
 技术方案 P1 组1 门槛：结果数据模型、JSON renderer、golden 测试。全部为读动词（无 files
 写出，无 dry-run 差异）。
 
-- [ ] **Task 1.1 grep**
+- [x] **Task 1.1 grep**（stdout 单 JSON + 人类路径并存验证）
   data = `{matches: [{sheet, address, value}], pattern, sheet}`；stats = `{matches: N}`。
   复用 cmd_grep（terminal.rs:2511）的匹配逻辑，println 改为收集 Vec。退出码：结构化模式
   恒 0（命中数在 stats，人类路径保留 0/1 语义）。
   TDD：先写进程级失败测试 `grep --json`（当前返回 3）。
-- [ ] **Task 1.2 profile**
+- [x] **Task 1.2 profile**（含 cast_precision_loss 局部 allow）
   data = `{column, count, non_null, numeric_count, text_count, distinct, sum, mean, min,
   max}`；warnings = 稳定字符串码 `NUMBERS_STORED_AS_TEXT` / `DATES_STORED_AS_TEXT`
   （含计数 detail，映射模式参照 markdown_result :648 的 MarkdownWarningCode 映射）。
   复用 cmd_profile（:2429）统计逻辑。
-- [ ] **Task 1.3 eval**
+- [x] **Task 1.3 eval**（Array/Ref→grid，SORT/SEQUENCE 冒烟通过）
   data = `{formula, at, value}`，数组结果 `{grid: [[...]]}`（render_value_grid 的结构化
   版本，参照 selection.rs:54 的 CellValue→JSON）。复用 cmd_eval（:1529）的
   `Engine::new().recalc + eval_formula` 路径。
-- [ ] **Task 1.4 format**
+- [x] **Task 1.4 format**（复用 render::describe_number_format）
   data = `{cell, format: "DATE"|"NUMBER"|"GENERAL"|<numfmt-code>}`。terminal 侧对应实现
   迁移。
-- [ ] **Task 1.5 组1 收尾**
+- [x] **Task 1.5 组1 收尾**（schema/双语 README/SKILL+dist/进程级契约测试）
   schema.rs 为 4 个动词写详细 schema（当前 `_ =>` 通用占位）；SKILL.md 命令表加行、禁用
   清单移除这 4 个；README×2 能力表更新；`node scripts/sync-skills.js`；git diff 确认
   dist 同步。
