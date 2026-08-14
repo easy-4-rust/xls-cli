@@ -15,8 +15,9 @@ use clap::{Parser, Subcommand, ValueEnum};
 use super::easyexcel_components as core;
 use super::easyexcel_components::formula::{CellRef, Engine};
 use super::easyexcel_components::model::{Cell, Workbook};
-use super::easyexcel_components::value::CellValue;
 use super::predicate::Predicate;
+#[cfg(test)]
+use super::easyexcel_components::value::CellValue;
 use super::{render, stream};
 
 // ─── Top-level CLI ──────────────────────────────────────────────────────────

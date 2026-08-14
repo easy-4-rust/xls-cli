@@ -101,32 +101,28 @@ impl Predicate {
                     (CellValue::Number(x), Ok(y)) => Some((x, y)),
                     _ => None,
                 };
-                match numeric {
-                    Some((x, y)) => {
-                        let o = x.partial_cmp(&y).unwrap_or(Ordering::Equal);
-                        match self.op {
-                            PredOp::Eq => o == Ordering::Equal,
-                            PredOp::Ne => o != Ordering::Equal,
-                            PredOp::Gt => o == Ordering::Greater,
-                            PredOp::Ge => o != Ordering::Less,
-                            PredOp::Lt => o == Ordering::Less,
-                            PredOp::Le => o != Ordering::Greater,
-                            _ => false,
-                        }
-                    }
-                    None => {
-                        let disp = wb.display_cell(sheet_idx, row, col);
-                        let (a, b) = (disp.as_str(), self.rhs.as_str());
-                        match self.op {
-                            PredOp::Eq => a == b,
-                            PredOp::Ne => a != b,
-                            PredOp::Gt => a > b,
-                            PredOp::Ge => a >= b,
-                            PredOp::Lt => a < b,
-                            PredOp::Le => a <= b,
-                            _ => false,
-                        }
-                    }
+                let Some((x, y)) = numeric else {
+                    let disp = wb.display_cell(sheet_idx, row, col);
+                    let (a, b) = (disp.as_str(), self.rhs.as_str());
+                    return match self.op {
+                        PredOp::Eq => a == b,
+                        PredOp::Ne => a != b,
+                        PredOp::Gt => a > b,
+                        PredOp::Ge => a >= b,
+                        PredOp::Lt => a < b,
+                        PredOp::Le => a <= b,
+                        _ => false,
+                    };
+                };
+                let o = x.partial_cmp(&y).unwrap_or(Ordering::Equal);
+                match self.op {
+                    PredOp::Eq => o == Ordering::Equal,
+                    PredOp::Ne => o != Ordering::Equal,
+                    PredOp::Gt => o == Ordering::Greater,
+                    PredOp::Ge => o != Ordering::Less,
+                    PredOp::Lt => o == Ordering::Less,
+                    PredOp::Le => o != Ordering::Greater,
+                    _ => false,
                 }
             }
         }

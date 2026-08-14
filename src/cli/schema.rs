@@ -3,6 +3,7 @@ use serde_json::{Value, json};
 use crate::CommandName;
 
 /// 返回指定命令的简化 JSON Schema。
+#[allow(clippy::too_many_lines, reason = "命令 schema 集中维护，拆散削弱协议审计性")]
 #[must_use]
 pub fn command_schema(command: CommandName) -> Value {
     let mut properties = serde_json::Map::new();
