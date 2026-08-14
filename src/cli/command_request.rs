@@ -5,7 +5,7 @@ use serde_json::Value;
 
 use easyexcel::markdown::{MarkdownExportOptions, MarkdownImportOptions};
 
-use crate::{CellInput, CommandName, OutputFormat};
+use crate::{Aggregation, CellInput, CommandName, OutputFormat};
 
 /// 带类型的命令请求。路径使用平台原生 [`PathBuf`]，不强制 UTF-8。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -202,6 +202,14 @@ pub enum CommandRequest {
         sheet: Option<String>,
         output: Option<PathBuf>,
     },
+    /// 按行键列分组并聚合数值列，返回分组表。
+    Pivot {
+        input: PathBuf,
+        rows: String,
+        values: String,
+        agg: Aggregation,
+        sheet: Option<String>,
+    },
     /// 已进入协议但尚未迁入生产实现的命令。
     Planned {
         command_name: CommandName,
@@ -246,6 +254,7 @@ impl CommandRequest {
             Self::Dedup { .. } => CommandName::Dedup,
             Self::Copy { .. } => CommandName::Copy,
             Self::Move { .. } => CommandName::Move,
+            Self::Pivot { .. } => CommandName::Pivot,
             Self::Planned { command_name, .. } => *command_name,
         }
     }

@@ -2,6 +2,8 @@ use std::path::PathBuf;
 
 use clap::{Parser, Subcommand, ValueEnum};
 
+use crate::Aggregation as CliAggregation;
+
 /// 面向脚本和智能体的电子表格命令行。
 #[derive(Debug, Parser)]
 #[command(
@@ -315,6 +317,21 @@ pub(crate) enum Commands {
         sheet: Option<String>,
         #[arg(short, long)]
         output: Option<PathBuf>,
+    },
+    /// 按行键列分组并聚合数值列。
+    Pivot {
+        input: PathBuf,
+        /// 分组列（字母或表头名）。
+        #[arg(long)]
+        rows: String,
+        /// 聚合数值列（字母或表头名）。
+        #[arg(long)]
+        values: String,
+        /// 聚合函数。
+        #[arg(long, value_enum, default_value_t = CliAggregation::Sum)]
+        agg: CliAggregation,
+        #[arg(long, short = 's')]
+        sheet: Option<String>,
     },
     /// 输出机器可读能力清单。
     Capabilities,

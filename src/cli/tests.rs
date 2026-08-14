@@ -620,6 +620,50 @@ fn copy_and_move_ranges_with_readback() {
 }
 
 #[test]
+fn pivot_groups_and_aggregates_into_rows() {
+    let directory = tempfile::tempdir().expect("temp directory");
+    let markdown = directory.path().join("input.md");
+    let workbook = directory.path().join("book.xlsx");
+    fs::write(
+        &markdown,
+        "| region | amount |\n| --- | ---: |\n| north | 10 |\n| south | 5 |\n| north | 7 |\n",
+    )
+    .expect("write fixture");
+    let executor = DefaultCommandExecutor::new();
+    executor
+        .execute(
+            CommandRequest::Import {
+                input: markdown,
+                output: workbook.clone(),
+                markdown_options: None,
+            },
+            &ExecutionContext::new(),
+        )
+        .expect("import markdown");
+    let result = executor
+        .execute(
+            CommandRequest::Pivot {
+                input: workbook,
+                rows: "region".to_owned(),
+                values: "amount".to_owned(),
+                agg: Aggregation::Sum,
+                sheet: None,
+            },
+            &ExecutionContext::new(),
+        )
+        .expect("pivot");
+    assert_eq!(result.command, CommandName::Pivot);
+    assert_eq!(result.data["columns"], serde_json::json!(["region", "sum"]));
+    let rows = result.data["rows"].as_array().expect("rows");
+    assert_eq!(rows.len(), 2);
+    assert_eq!(rows[0][0], "north");
+    assert_eq!(rows[0][1].as_f64(), Some(17.0));
+    assert_eq!(rows[1][0], "south");
+    assert_eq!(rows[1][1].as_f64(), Some(5.0));
+    assert_eq!(result.stats["groups"], 2);
+}
+
+#[test]
 fn query_engine_is_available_through_command_contract() {
     let directory = tempfile::tempdir().expect("temp directory");
     let markdown = directory.path().join("query.md");

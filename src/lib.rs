@@ -7,7 +7,7 @@ pub mod cli;
 pub mod tui;
 
 pub use cli::{
-    CapabilityManifest, CapabilityStatus, CellInput, CommandCapability, CommandError,
+    Aggregation, CapabilityManifest, CapabilityStatus, CellInput, CommandCapability, CommandError,
     CommandExecutor, CommandName, CommandRequest, CommandResult, CommandWarning,
     DefaultCommandExecutor, ErrorCode, ExecutionContext, ExecutionMode, GeneratedFile,
     MarkdownCapability, OutputFormat, OverwritePolicy, ResourceLimits, SchemaVersion, SecretString,

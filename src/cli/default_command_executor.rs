@@ -296,6 +296,13 @@ impl CommandExecutor for DefaultCommandExecutor {
             } => mutate(&input, output, context, command, |workbook| {
                 dedup_workbook(workbook, &on, sheet.as_deref())
             }),
+            CommandRequest::Pivot {
+                input,
+                rows,
+                values,
+                agg,
+                sheet,
+            } => pivot(&input, &rows, &values, agg, sheet.as_deref(), context),
             CommandRequest::Copy {
                 input,
                 source,
@@ -790,6 +797,81 @@ fn copy_move_workbook(
         "target": target,
         "cells": cells,
     }))
+}
+
+/// 按行键列分组并聚合数值列，返回分组行集（不改文件）。
+fn pivot(
+    path: &Path,
+    rows: &str,
+    values: &str,
+    agg: crate::Aggregation,
+    sheet: Option<&str>,
+    context: &ExecutionContext,
+) -> Result<CommandResult, CommandError> {
+    let workbook = open_workbook(path, context)?;
+    let index = resolve_sheet_index(&workbook, sheet)?;
+    let row_key = resolve_column(&workbook, index, rows)?;
+    let value_column = resolve_column(&workbook, index, values)?;
+    let row_count = workbook.sheets[index].dimensions().0;
+
+    // key → (count, sum, min, max)
+    let mut groups: std::collections::BTreeMap<String, (u64, f64, f64, f64)> =
+        std::collections::BTreeMap::new();
+    for row in 1..row_count {
+        let key = workbook.display_cell(index, row, row_key);
+        if key.is_empty() {
+            continue;
+        }
+        let entry = groups.entry(key).or_insert((0, 0.0, f64::INFINITY, f64::NEG_INFINITY));
+        entry.0 += 1;
+        if let easyexcel::model::value::CellValue::Number(n) =
+            workbook.sheets[index].value(row, value_column)
+        {
+            entry.1 += n;
+            entry.2 = entry.2.min(n);
+            entry.3 = entry.3.max(n);
+        }
+    }
+
+    let key_label = {
+        let header = workbook.display_cell(index, 0, row_key);
+        if header.is_empty() {
+            easyexcel::model::addr::col_index_to_letters(row_key)
+        } else {
+            header
+        }
+    };
+    let aggregate = |(count, sum, min, max): &(u64, f64, f64, f64)| -> f64 {
+        match agg {
+            crate::Aggregation::Sum => *sum,
+            crate::Aggregation::Count => {
+                #[allow(clippy::cast_precision_loss, reason = "计数远小于 2^52")]
+                {
+                    *count as f64
+                }
+            }
+            crate::Aggregation::Mean => {
+                #[allow(clippy::cast_precision_loss, reason = "计数远小于 2^52")]
+                {
+                    if *count > 0 { *sum / *count as f64 } else { 0.0 }
+                }
+            }
+            crate::Aggregation::Min => *min,
+            crate::Aggregation::Max => *max,
+        }
+    };
+    let grouped = groups
+        .iter()
+        .map(|(key, stats)| json!([key, aggregate(stats)]))
+        .collect::<Vec<_>>();
+    let group_count = grouped.len();
+    let data = json!({
+        "columns": [key_label, agg.as_str()],
+        "rows": grouped,
+    });
+    let mut result = CommandResult::new(CommandName::Pivot, data, is_dry_run(context));
+    result.stats.insert("groups".to_owned(), group_count as u64);
+    Ok(result)
 }
 
 fn info(path: &Path, context: &ExecutionContext) -> Result<CommandResult, CommandError> {

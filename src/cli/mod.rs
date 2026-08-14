@@ -17,7 +17,8 @@ mod easyexcel_components;
 mod execution_context;
 mod markdown_capability;
 mod output_format;
-mod predicate;
+mod aggregation;
+pub(crate) mod predicate;
 mod row_ops;
 mod query;
 mod render;
@@ -34,6 +35,7 @@ pub(crate) use args::{
     Cli, CliMarkdownFormulaPolicy, CliMarkdownMergePolicy, CliMarkdownMode,
     CliMarkdownTypeInference, CliOutputFormat, Commands,
 };
+pub use aggregation::Aggregation;
 pub use capability_manifest::{CapabilityManifest, CapabilityStatus, CommandCapability};
 pub use cell_input::CellInput;
 pub use command_error::{CommandError, ErrorCode};

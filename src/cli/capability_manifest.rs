@@ -81,12 +81,12 @@ impl CapabilityManifest {
             CommandName::Dedup,
             CommandName::Copy,
             CommandName::Move,
+            CommandName::Pivot,
         ];
         const TERMINAL_ONLY: &[CommandName] = &[
             CommandName::Open,
             CommandName::Append,
             CommandName::Join,
-            CommandName::Pivot,
             CommandName::Diff,
             CommandName::FormatSet,
             CommandName::ToNumber,

@@ -239,6 +239,19 @@ pub(crate) fn into_request(command: Commands) -> Result<CommandRequest, String> 
             sheet,
             output,
         },
+        Commands::Pivot {
+            input,
+            rows,
+            values,
+            agg,
+            sheet,
+        } => CommandRequest::Pivot {
+            input,
+            rows,
+            values,
+            agg,
+            sheet,
+        },
         Commands::Copy {
             input,
             src,
