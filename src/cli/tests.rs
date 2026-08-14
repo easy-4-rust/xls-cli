@@ -224,6 +224,67 @@ fn grep_reports_matches_and_zero_hits_without_error() {
 }
 
 #[test]
+fn profile_reports_column_stats_and_text_storage_warnings() {
+    let directory = tempfile::tempdir().expect("temp directory");
+    let markdown = directory.path().join("input.md");
+    let workbook = directory.path().join("book.xlsx");
+    fs::write(
+        &markdown,
+        "| amount | note |\n| --- | --- |\n| 42 | 6,000.00 |\n| 7 | 04/04/2025 |\n| 9 | ok |\n",
+    )
+    .expect("write fixture");
+    let executor = DefaultCommandExecutor::new();
+    executor
+        .execute(
+            CommandRequest::Import {
+                input: markdown,
+                output: workbook.clone(),
+                markdown_options: None,
+            },
+            &ExecutionContext::new(),
+        )
+        .expect("import markdown");
+    let result = executor
+        .execute(
+            CommandRequest::Profile {
+                input: workbook,
+                column: "amount".to_owned(),
+                sheet: None,
+            },
+            &ExecutionContext::new(),
+        )
+        .expect("profile amount column");
+    assert_eq!(result.command, CommandName::Profile);
+    assert_eq!(result.data["column"], "amount");
+    assert_eq!(result.data["count"], 3);
+    assert_eq!(result.data["numeric"], 3);
+    assert_eq!(result.data["min"], 7.0);
+    assert_eq!(result.data["max"], 42.0);
+    assert_eq!(result.data["sum"], 58.0);
+    assert!(result.warnings.is_empty(), "数值列不应产生警告");
+
+    // 备注列：一个数字文本 + 一个日期文本 → 两条稳定警告码
+    let result = executor
+        .execute(
+            CommandRequest::Profile {
+                input: directory.path().join("book.xlsx"),
+                column: "note".to_owned(),
+                sheet: None,
+            },
+            &ExecutionContext::new(),
+        )
+        .expect("profile note column");
+    let codes: Vec<&str> = result
+        .warnings
+        .iter()
+        .map(|warning| warning.code.as_str())
+        .collect();
+    assert!(codes.contains(&"NUMBERS_STORED_AS_TEXT"), "警告集：{codes:?}");
+    assert!(codes.contains(&"DATES_STORED_AS_TEXT"), "警告集：{codes:?}");
+    assert_eq!(result.data["text"], 3);
+}
+
+#[test]
 fn query_engine_is_available_through_command_contract() {
     let directory = tempfile::tempdir().expect("temp directory");
     let markdown = directory.path().join("query.md");

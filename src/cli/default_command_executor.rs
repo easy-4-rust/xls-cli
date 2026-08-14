@@ -263,6 +263,11 @@ impl CommandExecutor for DefaultCommandExecutor {
                 pattern,
                 sheet,
             } => grep(&input, &pattern, sheet.as_deref(), context),
+            CommandRequest::Profile {
+                input,
+                column,
+                sheet,
+            } => profile(&input, &column, sheet.as_deref(), context),
             CommandRequest::Planned { command_name, .. } => Err(CommandError::new(
                 ErrorCode::UnsupportedCommand,
                 format!("当前版本尚不支持命令：{}", command_name.as_str()),
@@ -324,6 +329,122 @@ fn grep(
     });
     let mut result = CommandResult::new(CommandName::Grep, data, is_dry_run(context));
     result.stats.insert("matches".to_owned(), hit_count as u64);
+    Ok(result)
+}
+
+/// 解析列规格：表头名（第 0 行，大小写不敏感）优先，其次列字母（如 `H` 或 `H:H`）。
+fn resolve_column(workbook: &Workbook, sheet_index: usize, specification: &str) -> Result<u32, CommandError> {
+    let trimmed = specification.trim();
+    let header = (0..workbook.sheets[sheet_index].dimensions().1)
+        .find(|&column| {
+            workbook
+                .display_cell(sheet_index, 0, column)
+                .eq_ignore_ascii_case(trimmed)
+        });
+    if let Some(column) = header {
+        return Ok(column);
+    }
+    let letters = trimmed.split(':').next().unwrap_or(trimmed);
+    if !letters.is_empty() && letters.chars().all(|c| c.is_ascii_alphabetic()) {
+        let upper = letters.to_ascii_uppercase();
+        if let Some(column) = easyexcel::model::addr::col_letters_to_index(&upper) {
+            return Ok(column);
+        }
+    }
+    Err(CommandError::new(
+        ErrorCode::InvalidArgument,
+        format!("列不存在（既不是表头名也不是列字母）：{specification}"),
+    ))
+}
+
+/// 统计一列的数据概况，并对“数字/日期存为文本”给出稳定警告码。
+fn profile(
+    path: &Path,
+    column: &str,
+    sheet: Option<&str>,
+    context: &ExecutionContext,
+) -> Result<CommandResult, CommandError> {
+    let workbook = open_workbook(path, context)?;
+    let index = resolve_sheet_index(&workbook, sheet)?;
+    let column = resolve_column(&workbook, index, column)?;
+    let rows = workbook.sheets[index].dimensions().0;
+    let label = {
+        let header = workbook.display_cell(index, 0, column);
+        if header.is_empty() {
+            easyexcel::model::addr::col_index_to_letters(column)
+        } else {
+            header
+        }
+    };
+
+    let mut count = 0u64;
+    let mut nulls = 0u64;
+    let mut numeric = 0u64;
+    let mut text = 0u64;
+    let mut text_numbers = 0u64;
+    let mut text_dates = 0u64;
+    let mut sum = 0.0_f64;
+    let mut min = f64::INFINITY;
+    let mut max = f64::NEG_INFINITY;
+    let mut distinct = std::collections::HashSet::new();
+    for row in 1..rows {
+        let value = workbook.sheets[index].value(row, column);
+        match value {
+            easyexcel::model::value::CellValue::Empty => {
+                nulls += 1;
+                continue;
+            }
+            easyexcel::model::value::CellValue::Number(n) => {
+                numeric += 1;
+                sum += n;
+                min = min.min(n);
+                max = max.max(n);
+            }
+            easyexcel::model::value::CellValue::Text(t) => {
+                text += 1;
+                if easyexcel::formula::formula::coerce::parse_number_text(&t).is_some() {
+                    text_numbers += 1;
+                } else if easyexcel::model::dates::looks_like_date(&t) {
+                    text_dates += 1;
+                }
+            }
+            _ => {}
+        }
+        count += 1;
+        distinct.insert(workbook.display_cell(index, row, column));
+    }
+
+    let mut data = json!({
+        "column": label,
+        "count": count,
+        "nulls": nulls,
+        "numeric": numeric,
+        "text": text,
+        "distinct": distinct.len(),
+    });
+    if numeric > 0 {
+        // 计数远小于 2^52，计数转 f64 不损失电子表格语义。
+        #[allow(clippy::cast_precision_loss)]
+        let mean = sum / numeric as f64;
+        data["sum"] = json!(sum);
+        data["mean"] = json!(mean);
+        data["min"] = json!(min);
+        data["max"] = json!(max);
+    }
+    let mut result = CommandResult::new(CommandName::Profile, data, is_dry_run(context));
+    result.stats.insert("count".to_owned(), count);
+    if text_numbers > 0 {
+        result.warnings.push(CommandWarning::new(
+            "NUMBERS_STORED_AS_TEXT",
+            format!("{text_numbers} 个值是文本存储的数字（SUM/AVERAGE 会忽略）——可用 to-number 转换"),
+        ));
+    }
+    if text_dates > 0 {
+        result.warnings.push(CommandWarning::new(
+            "DATES_STORED_AS_TEXT",
+            format!("{text_dates} 个值疑似文本存储的日期（非真实日期）——可用 to-date 转换"),
+        ));
+    }
     Ok(result)
 }
 

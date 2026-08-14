@@ -148,6 +148,12 @@ pub enum CommandRequest {
         pattern: String,
         sheet: Option<String>,
     },
+    /// 统计一列的数据概况，并对“数字/日期存为文本”给出稳定警告。
+    Profile {
+        input: PathBuf,
+        column: String,
+        sheet: Option<String>,
+    },
     /// 已进入协议但尚未迁入生产实现的命令。
     Planned {
         command_name: CommandName,
@@ -184,6 +190,7 @@ impl CommandRequest {
             Self::Capabilities => CommandName::Capabilities,
             Self::Schema { .. } => CommandName::Schema,
             Self::Grep { .. } => CommandName::Grep,
+            Self::Profile { .. } => CommandName::Profile,
             Self::Planned { command_name, .. } => *command_name,
         }
     }

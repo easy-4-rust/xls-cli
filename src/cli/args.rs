@@ -241,6 +241,13 @@ pub(crate) enum Commands {
         #[arg(long, short = 's')]
         sheet: Option<String>,
     },
+    /// 统计一列的数据概况（计数/空值/数值/文本/去重与聚合）。
+    Profile {
+        input: PathBuf,
+        column: String,
+        #[arg(long, short = 's')]
+        sheet: Option<String>,
+    },
     /// 输出机器可读能力清单。
     Capabilities,
     /// 输出指定命令的 JSON Schema。

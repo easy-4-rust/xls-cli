@@ -205,6 +205,15 @@ pub(crate) fn into_request(command: Commands) -> Result<CommandRequest, String> 
         },
         Commands::Recalc { input, output } => CommandRequest::Recalc { input, output },
         Commands::Capabilities => CommandRequest::Capabilities,
+        Commands::Profile {
+            input,
+            column,
+            sheet,
+        } => CommandRequest::Profile {
+            input,
+            column,
+            sheet,
+        },
         Commands::Grep {
             input,
             pattern,
