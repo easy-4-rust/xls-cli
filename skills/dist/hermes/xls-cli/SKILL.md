@@ -52,6 +52,10 @@ Apply these rules:
 | Column quality | `profile` | Column stats plus `NUMBERS_STORED_AS_TEXT` / `DATES_STORED_AS_TEXT` warnings. |
 | Compute | `eval` | Single formula; scalars return `data.value`, arrays return `data.grid`. |
 | Number format | `format` | Cell number-format category and code. |
+| Filter rows | `filter` | Predicate DSL `amount>1000`, `name~ali`, `col:number`; returns matched rows. |
+| Reshape rows | `sort`, `dedup`, `copy`, `move`, `append` | Mutating verbs; always dry-run first, write to a new output path. |
+| Aggregate | `pivot` | Group by one column, aggregate another (sum/count/mean/min/max). |
+| Combine workbooks | `join`, `diff` | Two inputs (`input` + `with`); join on a shared key column, diff keyed or cell-level. |
 | Query | `query` | Read-only SQL; sheets are tables and row 0 is the header. |
 | Edit cells | `set`, `clear`, `fill` | Provide `--output` unless creating a new workbook. |
 | Edit axes | `insert-row`, `delete-row`, `insert-col`, `delete-col` | CLI positions are zero-based. |
@@ -61,7 +65,7 @@ Apply these rules:
 | Export tables | `export` | Markdown/HTML/JSON/CSV/TSV output. |
 | Discover protocol | `capabilities`, `schema` | Runtime truth; do not cache indefinitely. |
 
-Do not use `open`, `copy`, `move`, `append`, `filter`, `sort`, `dedup`, `join`, `pivot`, `diff`, `format-set`, `to-number`, `to-date`, `style`, `autofit`, `batch`, `name`, or `table` when capability marks them `partial`, unless the user explicitly requests a human-operated terminal workflow.
+Do not use `open`, `format-set`, `to-number`, `to-date`, `style`, `autofit`, `batch`, `name`, or `table` when capability marks them `partial`, unless the user explicitly requests a human-operated terminal workflow. For `join`, `diff`, and `append`, the second input (`with`) must differ from the output path, and neither input may be overwritten.
 
 ## Inspect and extract data
 

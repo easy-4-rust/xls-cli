@@ -64,7 +64,9 @@ The binary's `xls capabilities --json` result is the source of truth. The follow
 | Inspect protocol | `capabilities`, `schema --command NAME` | `supported` | `xls schema --command get --json` |
 | Work interactively | `open` or a workbook path | `partial` | `xls open report.xlsx` |
 | Search / profile / compute | `grep`, `profile`, `eval`, `format` | `supported` | `xls grep report.xlsx ZANMAI --json` |
-| Advanced terminal operations | `copy`, `move`, `append`, `filter`, `sort`, `dedup`, `join`, `pivot`, `diff`, `format-set`, `to-number`, `to-date`, `style`, `autofit`, `batch`, `name`, `table` | `partial` | `xls pivot report.xlsx --help` |
+| Filter / reshape / aggregate | `filter`, `sort`, `dedup`, `copy`, `move`, `append`, `pivot` | `supported` | `xls filter report.xlsx 'amount>1000' --json` |
+| Combine workbooks | `join`, `diff` | `supported` | `xls diff before.xlsx after.xlsx --key date --json` |
+| Advanced terminal operations | `format-set`, `to-number`, `to-date`, `style`, `autofit`, `batch`, `name`, `table` | `partial` | `xls batch report.xlsx --help` |
 
 `partial` means that a migrated human-terminal implementation exists, not that a structured result contract exists. `--json` intentionally returns `UNSUPPORTED_COMMAND` for those commands. Agent integrations must not parse human-oriented terminal output as an API substitute.
 
@@ -211,7 +213,7 @@ There are two output surfaces. Commands with `--json` use the stable structured 
 | Inspect number format | `xls format report.xlsx C2 --json` | Structured, `data.format` |
 | Search cells | `xls grep report.xlsx ZANMAI --json` | Structured, `data.matches` |
 | Column quality profile | `xls profile report.xlsx amount --json` | Structured, stats + stable warnings |
-| Compare workbooks | `xls diff before.xlsx after.xlsx --key date` | Migrated terminal, partial |
+| Compare workbooks | `xls diff before.xlsx after.xlsx --key date --json` | Structured, keyed/cell differences |
 
 Terminal `get` supports `table`, `csv`, `tsv`, `json`, `jsonl`, and `md`; `--header` uses the first row as object keys or labels. `--raw` suppresses display formatting, and `--dates iso|serial` controls date-formatted numeric cells.
 

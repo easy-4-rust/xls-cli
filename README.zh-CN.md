@@ -64,7 +64,9 @@ flowchart LR
 | 检查协议 | `capabilities`、`schema --command NAME` | `supported` | `xls schema --command get --json` |
 | 交互工作簿 | `open` 或工作簿路径 | `partial` | `xls open report.xlsx` |
 | 搜索/画像/计算 | `grep`、`profile`、`eval`、`format` | `supported` | `xls grep report.xlsx ZANMAI --json` |
-| 高级终端操作 | `copy`、`move`、`append`、`filter`、`sort`、`dedup`、`join`、`pivot`、`diff`、`format-set`、`to-number`、`to-date`、`style`、`autofit`、`batch`、`name`、`table` | `partial` | `xls pivot report.xlsx --help` |
+| 过滤/重塑/聚合 | `filter`、`sort`、`dedup`、`copy`、`move`、`append`、`pivot` | `supported` | `xls filter report.xlsx 'amount>1000' --json` |
+| 合并工作簿 | `join`、`diff` | `supported` | `xls diff before.xlsx after.xlsx --key date --json` |
+| 高级终端操作 | `format-set`、`to-number`、`to-date`、`style`、`autofit`、`batch`、`name`、`table` | `partial` | `xls batch report.xlsx --help` |
 
 `partial` 表示存在已迁移的人类终端实现，并不表示存在结构化 result contract。为避免智能体误用，传入 `--json` 会明确返回 `UNSUPPORTED_COMMAND`；不得解析人类终端文本作为替代 API。
 
@@ -209,7 +211,7 @@ xls schema --command export --json
 | 检查数字格式 | `xls format report.xlsx C2 --json` | 结构化，`data.format` |
 | 搜索单元格 | `xls grep report.xlsx ZANMAI --json` | 结构化，`data.matches` |
 | 列质量画像 | `xls profile report.xlsx amount --json` | 结构化，统计 + 稳定警告 |
-| 比较工作簿 | `xls diff before.xlsx after.xlsx --key date` | 迁移终端，partial |
+| 比较工作簿 | `xls diff before.xlsx after.xlsx --key date --json` | 结构化，键列/单元格差异 |
 
 终端 `get` 支持 `table`、`csv`、`tsv`、`json`、`jsonl`、`md`；`--header` 将第一行作为对象键或表头。`--raw` 关闭显示格式，`--dates iso|serial` 控制日期格式数值的表达。
 

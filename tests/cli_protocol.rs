@@ -130,6 +130,66 @@ fn group1_read_verbs_return_structured_contracts() {
 }
 
 #[test]
+fn group2_group3_verbs_return_structured_contracts() {
+    let directory = tempfile::tempdir().expect("temp directory");
+    let markdown = directory.path().join("g23.md");
+    let workbook_path = directory.path().join("g23.xlsx");
+    std::fs::write(
+        &markdown,
+        "| name | amount |\n| --- | ---: |\n| Alice | 42 |\n| Bob | 7 |\n| Carol | 99 |\n",
+    )
+    .expect("fixture");
+    let markdown_text = markdown.to_string_lossy();
+    let workbook_text = workbook_path.to_string_lossy();
+    assert!(run(&["import", &markdown_text, &workbook_text, "--json"])
+        .status
+        .success());
+
+    for arguments in [
+        vec!["filter", &workbook_text, "amount>40", "--json"],
+        vec!["pivot", &workbook_text, "--rows", "name", "--values", "amount", "--json"],
+        vec!["sort", &workbook_text, "--by", "amount", "--output",
+             &directory.path().join("s.xlsx").to_string_lossy(), "--json"],
+        vec!["dedup", &workbook_text, "--on", "name", "--output",
+             &directory.path().join("d.xlsx").to_string_lossy(), "--json"],
+        vec!["copy", &workbook_text, "A2:B2", "A5", "--output",
+             &directory.path().join("c.xlsx").to_string_lossy(), "--json"],
+        vec!["move", &workbook_text, "A2:B2", "A6", "--output",
+             &directory.path().join("m.xlsx").to_string_lossy(), "--json"],
+        vec!["join", &workbook_text, &workbook_text, "--on", "name", "--json"],
+        vec!["diff", &workbook_text, &workbook_text, "--json"],
+    ] {
+        let output = run(&arguments);
+        assert!(
+            output.status.success(),
+            "命令 {:?} 应成功",
+            arguments.first()
+        );
+        assert!(
+            output.stderr.is_empty(),
+            "命令 {:?} 的 stderr 应为空",
+            arguments.first()
+        );
+        let value: serde_json::Value =
+            serde_json::from_slice(&output.stdout).expect("JSON");
+        assert_eq!(
+            value["command"],
+            serde_json::json!(arguments.first().unwrap().to_string())
+        );
+    }
+
+    // append 需要两个输入
+    let appended = directory.path().join("a.xlsx").to_string_lossy().to_string();
+    let output = run(&[
+        "append", &workbook_text, &workbook_text, "--output", &appended, "--json",
+    ]);
+    assert!(output.status.success());
+    let value: serde_json::Value = serde_json::from_slice(&output.stdout).expect("JSON");
+    assert_eq!(value["command"], "append");
+    assert_eq!(value["data"]["appended"], 3);
+}
+
+#[test]
 fn markdown_task_chain_dry_runs_writes_and_reopens_output() {
     let directory = tempfile::tempdir().expect("temp directory");
     let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/tables.md");

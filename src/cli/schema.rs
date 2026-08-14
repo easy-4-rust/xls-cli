@@ -109,6 +109,92 @@ pub fn command_schema(command: CommandName) -> Value {
             );
             required.push(json!("cell"));
         }
+        CommandName::Filter => {
+            add_path(&mut properties, &mut required, "input");
+            properties.insert(
+                "predicate".to_owned(),
+                json!({"type": "string", "description": "如 amount>1000、name~ali、col:number"}),
+            );
+            required.push(json!("predicate"));
+            properties.insert("sheet".to_owned(), json!({"type": ["string", "null"]}));
+        }
+        CommandName::Sort => {
+            add_path(&mut properties, &mut required, "input");
+            properties.insert(
+                "by".to_owned(),
+                json!({"type": "array", "items": {"type": "string"}, "minItems": 1}),
+            );
+            required.push(json!("by"));
+            properties.insert("desc".to_owned(), json!({"type": "boolean"}));
+            properties.insert("sheet".to_owned(), json!({"type": ["string", "null"]}));
+            properties.insert("output".to_owned(), json!({"type": ["string", "null"]}));
+        }
+        CommandName::Dedup => {
+            add_path(&mut properties, &mut required, "input");
+            properties.insert(
+                "on".to_owned(),
+                json!({"type": "array", "items": {"type": "string"}, "description": "键列；缺省整行"}),
+            );
+            properties.insert("sheet".to_owned(), json!({"type": ["string", "null"]}));
+            properties.insert("output".to_owned(), json!({"type": ["string", "null"]}));
+        }
+        CommandName::Copy | CommandName::Move => {
+            add_path(&mut properties, &mut required, "input");
+            properties.insert(
+                "source".to_owned(),
+                json!({"type": "string", "description": "源范围，如 A1:B3"}),
+            );
+            required.push(json!("source"));
+            properties.insert(
+                "target".to_owned(),
+                json!({"type": "string", "description": "目标左上角单元格，如 D1"}),
+            );
+            required.push(json!("target"));
+            properties.insert("sheet".to_owned(), json!({"type": ["string", "null"]}));
+            properties.insert("output".to_owned(), json!({"type": ["string", "null"]}));
+        }
+        CommandName::Pivot => {
+            add_path(&mut properties, &mut required, "input");
+            properties.insert(
+                "rows".to_owned(),
+                json!({"type": "string", "description": "分组列（字母或表头名）"}),
+            );
+            required.push(json!("rows"));
+            properties.insert(
+                "values".to_owned(),
+                json!({"type": "string", "description": "聚合数值列"}),
+            );
+            required.push(json!("values"));
+            properties.insert(
+                "agg".to_owned(),
+                json!({"enum": ["sum", "count", "mean", "min", "max"]}),
+            );
+            properties.insert("sheet".to_owned(), json!({"type": ["string", "null"]}));
+        }
+        CommandName::Append => {
+            add_path(&mut properties, &mut required, "input");
+            add_path(&mut properties, &mut required, "with");
+            properties.insert("sheet".to_owned(), json!({"type": ["string", "null"]}));
+            properties.insert("output".to_owned(), json!({"type": ["string", "null"]}));
+        }
+        CommandName::Join => {
+            add_path(&mut properties, &mut required, "input");
+            add_path(&mut properties, &mut required, "with");
+            properties.insert(
+                "on".to_owned(),
+                json!({"type": "string", "description": "连接键列，两侧同名"}),
+            );
+            required.push(json!("on"));
+        }
+        CommandName::Diff => {
+            add_path(&mut properties, &mut required, "input");
+            add_path(&mut properties, &mut required, "with");
+            properties.insert(
+                "key".to_owned(),
+                json!({"type": ["string", "null"], "description": "键列；提供时做行键比较"}),
+            );
+            properties.insert("sheet".to_owned(), json!({"type": ["string", "null"]}));
+        }
         CommandName::Capabilities => {}
         CommandName::Schema => {
             properties.insert("target".to_owned(), json!({"type": "string"}));
