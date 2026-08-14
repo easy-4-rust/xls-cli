@@ -867,6 +867,7 @@ fn group4_batch1_format_number_date_autofit() {
 }
 
 #[test]
+#[allow(clippy::too_many_lines, reason = "组4 批2 的端到端场景测试集中覆盖四类动词")]
 fn group4_batch2_style_name_table_batch() {
     let directory = tempfile::tempdir().expect("temp directory");
     let markdown = directory.path().join("input.md");

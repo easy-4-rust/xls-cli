@@ -264,7 +264,7 @@ pub(crate) fn into_request(command: Commands) -> Result<CommandRequest, String> 
             output,
         } => CommandRequest::Name {
             input,
-            action: action.into(),
+            action,
             output,
         },
         Commands::Table {
@@ -273,7 +273,7 @@ pub(crate) fn into_request(command: Commands) -> Result<CommandRequest, String> 
             output,
         } => CommandRequest::Table {
             input,
-            action: action.into(),
+            action,
             output,
         },
         Commands::Batch {

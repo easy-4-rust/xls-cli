@@ -1453,14 +1453,10 @@ fn table(
         } => mutate(path, output, context, CommandName::Table, |workbook| {
             let selection = resolve_selection(workbook, Some(&range), sheet.as_deref())?;
             let table_range = selection.range;
-            let table_name = match name {
-                Some(given) => given,
-                None => {
-                    #[allow(clippy::cast_precision_loss, reason = "表数量远小于 2^52")]
-                    let total = workbook.sheets.iter().map(|s| s.tables.len()).sum::<usize>() + 1;
-                    format!("Table{total}")
-                }
-            };
+            let table_name = name.unwrap_or_else(|| {
+                let total = workbook.sheets.iter().map(|s| s.tables.len()).sum::<usize>() + 1;
+                format!("Table{total}")
+            });
             if workbook.table_by_name(&table_name).is_some() {
                 return Err(CommandError::new(
                     ErrorCode::InvalidArgument,
@@ -1490,7 +1486,7 @@ fn table(
                     display_name: table_name.clone(),
                     range: table_range,
                     columns,
-                    header_rows: if no_header { 0 } else { 1 },
+                    header_rows: u32::from(!no_header),
                     totals_rows: 0,
                     id: 0,
                     raw_xml: Vec::new(),
@@ -1560,7 +1556,7 @@ fn parse_batch_value(value: &str) -> easyexcel::model::Cell {
     if let Some(expr) = value.strip_prefix('=') {
         return Cell::Formula {
             expr: expr.to_owned(),
-            cached: Default::default(),
+            cached: easyexcel::model::value::CellValue::default(),
         };
     }
     if value.eq_ignore_ascii_case("true") {
