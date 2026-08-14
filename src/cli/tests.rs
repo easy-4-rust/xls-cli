@@ -867,6 +867,149 @@ fn group4_batch1_format_number_date_autofit() {
 }
 
 #[test]
+fn group4_batch2_style_name_table_batch() {
+    let directory = tempfile::tempdir().expect("temp directory");
+    let markdown = directory.path().join("input.md");
+    let workbook = directory.path().join("book.xlsx");
+    fs::write(
+        &markdown,
+        "| name | amount |\n| --- | ---: |\n| Alice | 42 |\n",
+    )
+    .expect("write fixture");
+    let executor = DefaultCommandExecutor::new();
+    let import = CommandRequest::Import {
+        input: markdown,
+        output: workbook,
+        markdown_options: None,
+    };
+    executor
+        .execute(import, &ExecutionContext::new())
+        .expect("import markdown");
+
+    // style：范围加粗 + 底色
+    let styled = directory.path().join("styled.xlsx");
+    let result = executor
+        .execute(
+            CommandRequest::Style {
+                input: directory.path().join("book.xlsx"),
+                range: "A1:B1".to_owned(),
+                bold: true,
+                italic: false,
+                color: None,
+                bg: Some("FFFF00".to_owned()),
+                sheet: None,
+                output: Some(styled.clone()),
+            },
+            &ExecutionContext::new(),
+        )
+        .expect("style");
+    assert_eq!(result.data["cells"], 2);
+
+    // name：add → list → remove
+    let named = directory.path().join("named.xlsx");
+    executor
+        .execute(
+            CommandRequest::Name {
+                input: styled,
+                action: NameAction::Add {
+                    name: "Sales".to_owned(),
+                    refers_to: "Table1!$A$1:$B$2".to_owned(),
+                    sheet: None,
+                },
+                output: Some(named.clone()),
+            },
+            &ExecutionContext::new(),
+        )
+        .expect("name add");
+    let listed = executor
+        .execute(
+            CommandRequest::Name {
+                input: named.clone(),
+                action: NameAction::List,
+                output: None,
+            },
+            &ExecutionContext::new(),
+        )
+        .expect("name list");
+    assert_eq!(
+        listed.data["names"][0]["name"], "Sales",
+        "应列出刚定义的名称"
+    );
+
+    // table：add → list
+    let tabled = directory.path().join("tabled.xlsx");
+    executor
+        .execute(
+            CommandRequest::Table {
+                input: named,
+                action: TableAction::Add {
+                    range: "A1:B2".to_owned(),
+                    name: Some("SalesTable".to_owned()),
+                    sheet: None,
+                    no_header: false,
+                },
+                output: Some(tabled.clone()),
+            },
+            &ExecutionContext::new(),
+        )
+        .expect("table add");
+    let listed = executor
+        .execute(
+            CommandRequest::Table {
+                input: tabled.clone(),
+                action: TableAction::List,
+                output: None,
+            },
+            &ExecutionContext::new(),
+        )
+        .expect("table list");
+    assert_eq!(listed.data["tables"][0]["name"], "SalesTable");
+
+    // batch：两个 CELL=VALUE 一次落盘，回读验证
+    let batched = directory.path().join("batched.xlsx");
+    let result = executor
+        .execute(
+            CommandRequest::Batch {
+                input: tabled,
+                sets: vec!["A5=hello".to_owned(), "B5=7".to_owned()],
+                sheet: None,
+                output: Some(batched.clone()),
+            },
+            &ExecutionContext::new(),
+        )
+        .expect("batch");
+    assert_eq!(result.data["applied"], 2);
+    let readback = executor
+        .execute(
+            CommandRequest::Get {
+                input: batched,
+                range: Some("Table1!A5:B5".to_owned()),
+                output_format: OutputFormat::Json,
+            },
+            &ExecutionContext::new(),
+        )
+        .expect("read back batch");
+    assert_eq!(readback.data["rows"][0][0], "hello");
+    assert_eq!(readback.data["rows"][0][1].as_f64(), Some(7.0));
+
+    // batch 原子性：含非法项时整体失败且不写输出
+    let broken = directory.path().join("broken.xlsx");
+    let error = executor
+        .execute(
+            CommandRequest::Batch {
+                input: directory.path().join("book.xlsx"),
+                sets: vec!["A6=ok".to_owned(), "not-an-assignment".to_owned()],
+                sheet: None,
+                output: Some(broken.clone()),
+            },
+            &ExecutionContext::new(),
+        )
+        .expect_err("batch 必须整体失败");
+    assert_eq!(error.code, ErrorCode::InvalidArgument);
+    assert!(!broken.exists(), "失败时不得写出输出文件");
+}
+
+#[test]
 fn query_engine_is_available_through_command_contract() {
     let directory = tempfile::tempdir().expect("temp directory");
     let markdown = directory.path().join("query.md");

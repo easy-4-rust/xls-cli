@@ -303,6 +303,36 @@ impl CommandExecutor for DefaultCommandExecutor {
                 agg,
                 sheet,
             } => pivot(&input, &rows, &values, agg, sheet.as_deref(), context),
+            CommandRequest::Style {
+                input,
+                range,
+                bold,
+                italic,
+                color,
+                bg,
+                sheet,
+                output,
+            } => mutate(&input, output, context, command, |workbook| {
+                set_style(workbook, &range, bold, italic, color.as_deref(), bg.as_deref(), sheet.as_deref())
+            }),
+            CommandRequest::Name {
+                input,
+                action,
+                output,
+            } => name(&input, action, output, context),
+            CommandRequest::Table {
+                input,
+                action,
+                output,
+            } => table(&input, action, output, context),
+            CommandRequest::Batch {
+                input,
+                sets,
+                sheet,
+                output,
+            } => mutate(&input, output, context, command, |workbook| {
+                batch_edits(workbook, &sets, sheet.as_deref())
+            }),
             CommandRequest::FormatSet {
                 input,
                 range,
@@ -1252,6 +1282,297 @@ fn autofit_columns(
         fitted += 1;
     }
     Ok(json!({"columns": fitted}))
+}
+
+/// 解析 RRGGBB 十六进制颜色为带 alpha 的 u32。
+fn parse_hex_color(specification: &str) -> Result<u32, CommandError> {
+    let trimmed = specification.trim().trim_start_matches('#');
+    if trimmed.len() != 6 {
+        return Err(CommandError::new(
+            ErrorCode::InvalidArgument,
+            format!("无效颜色（需 6 位十六进制 RRGGBB）：{specification}"),
+        ));
+    }
+    u32::from_str_radix(trimmed, 16).map(|rgb| 0xFF00_0000 | rgb).map_err(|_| {
+        CommandError::new(
+            ErrorCode::InvalidArgument,
+            format!("无效颜色（需 6 位十六进制 RRGGBB）：{specification}"),
+        )
+    })
+}
+
+/// 为范围设置字体/填充样式（保留其它样式属性）。
+fn set_style(
+    workbook: &mut Workbook,
+    range: &str,
+    bold: bool,
+    italic: bool,
+    color: Option<&str>,
+    background: Option<&str>,
+    sheet: Option<&str>,
+) -> Result<Value, CommandError> {
+    use easyexcel::model::styles::{Color, FillPattern};
+    let selection = resolve_selection(workbook, Some(range), sheet)?;
+    let font_color = color.map(parse_hex_color).transpose()?;
+    let bg_color = background.map(parse_hex_color).transpose()?;
+    let mut cells = 0u64;
+    for (row, column) in selection.range.iter_cells() {
+        let mut style = workbook.sheets[selection.sheet_index]
+            .style_at(row, column)
+            .and_then(|index| workbook.styles.get(index).cloned())
+            .unwrap_or_default();
+        if bold {
+            style.font.bold = true;
+        }
+        if italic {
+            style.font.italic = true;
+        }
+        if let Some(rgb) = font_color {
+            style.font.color = Color::rgb(rgb);
+        }
+        if let Some(rgb) = bg_color {
+            style.fill.pattern = FillPattern::Solid;
+            style.fill.fg = Color::rgb(rgb);
+        }
+        let interned = workbook.styles.intern(style);
+        workbook.sheets[selection.sheet_index].set_style(row, column, interned);
+        cells += 1;
+    }
+    Ok(json!({"range": range, "cells": cells}))
+}
+
+/// 管理定义名称：List 为读，Add/Remove 走 mutate 管道。
+fn name(
+    path: &Path,
+    action: crate::NameAction,
+    output: Option<PathBuf>,
+    context: &ExecutionContext,
+) -> Result<CommandResult, CommandError> {
+    match action {
+        crate::NameAction::List => {
+            let workbook = open_workbook(path, context)?;
+            let names = workbook
+                .defined_names
+                .iter()
+                .map(|defined| {
+                    json!({
+                        "name": defined.name,
+                        "refers_to": defined.refers_to,
+                        "scope": defined.scope.map_or("workbook".to_owned(), |index| {
+                            workbook
+                                .sheets
+                                .get(index)
+                                .map_or("?".to_owned(), |sheet| sheet.name.clone())
+                        }),
+                    })
+                })
+                .collect::<Vec<_>>();
+            let count = names.len();
+            let mut result = CommandResult::new(
+                CommandName::Name,
+                json!({"names": names}),
+                is_dry_run(context),
+            );
+            result.stats.insert("names".to_owned(), count as u64);
+            Ok(result)
+        }
+        crate::NameAction::Add {
+            name,
+            refers_to,
+            sheet,
+        } => mutate(path, output, context, CommandName::Name, |workbook| {
+            let scope = match sheet.as_deref() {
+                Some(specification) => Some(resolve_sheet_index(workbook, Some(specification))?),
+                None => None,
+            };
+            workbook
+                .defined_names
+                .retain(|defined| !(defined.name.eq_ignore_ascii_case(&name) && defined.scope == scope));
+            workbook.defined_names.push(easyexcel::model::DefinedName {
+                name: name.clone(),
+                refers_to: refers_to.clone(),
+                scope,
+                hidden: false,
+            });
+            Ok(json!({"name": name, "refers_to": refers_to}))
+        }),
+        crate::NameAction::Remove { name } => mutate(path, output, context, CommandName::Name, |workbook| {
+            let before = workbook.defined_names.len();
+            workbook
+                .defined_names
+                .retain(|defined| !defined.name.eq_ignore_ascii_case(&name));
+            if workbook.defined_names.len() == before {
+                return Err(CommandError::new(
+                    ErrorCode::InvalidArgument,
+                    format!("定义名称不存在：{name}"),
+                ));
+            }
+            Ok(json!({"removed": name}))
+        }),
+    }
+}
+
+/// 管理 Excel 表格对象：List 为读，Add/Remove 走 mutate 管道。
+fn table(
+    path: &Path,
+    action: crate::TableAction,
+    output: Option<PathBuf>,
+    context: &ExecutionContext,
+) -> Result<CommandResult, CommandError> {
+    match action {
+        crate::TableAction::List => {
+            let workbook = open_workbook(path, context)?;
+            let tables = workbook
+                .sheets
+                .iter()
+                .flat_map(|sheet| {
+                    sheet.tables.iter().map(move |table| {
+                        json!({
+                            "name": table.name,
+                            "sheet": sheet.name,
+                            "range": table.range.to_a1(),
+                            "columns": table.columns,
+                        })
+                    })
+                })
+                .collect::<Vec<_>>();
+            let count = tables.len();
+            let mut result = CommandResult::new(
+                CommandName::Table,
+                json!({"tables": tables}),
+                is_dry_run(context),
+            );
+            result.stats.insert("tables".to_owned(), count as u64);
+            Ok(result)
+        }
+        crate::TableAction::Add {
+            range,
+            name,
+            sheet,
+            no_header,
+        } => mutate(path, output, context, CommandName::Table, |workbook| {
+            let selection = resolve_selection(workbook, Some(&range), sheet.as_deref())?;
+            let table_range = selection.range;
+            let table_name = match name {
+                Some(given) => given,
+                None => {
+                    #[allow(clippy::cast_precision_loss, reason = "表数量远小于 2^52")]
+                    let total = workbook.sheets.iter().map(|s| s.tables.len()).sum::<usize>() + 1;
+                    format!("Table{total}")
+                }
+            };
+            if workbook.table_by_name(&table_name).is_some() {
+                return Err(CommandError::new(
+                    ErrorCode::InvalidArgument,
+                    format!("表格名称已存在：{table_name}"),
+                ));
+            }
+            let column_count = table_range.cols();
+            let columns: Vec<String> = (0..column_count)
+                .map(|offset| {
+                    let column = table_range.start.col + offset;
+                    if no_header {
+                        format!("Column{}", offset + 1)
+                    } else {
+                        let header = workbook.display_cell(selection.sheet_index, table_range.start.row, column);
+                        if header.is_empty() {
+                            format!("Column{}", offset + 1)
+                        } else {
+                            header
+                        }
+                    }
+                })
+                .collect();
+            workbook.sheets[selection.sheet_index]
+                .tables
+                .push(easyexcel::model::Table {
+                    name: table_name.clone(),
+                    display_name: table_name.clone(),
+                    range: table_range,
+                    columns,
+                    header_rows: if no_header { 0 } else { 1 },
+                    totals_rows: 0,
+                    id: 0,
+                    raw_xml: Vec::new(),
+                });
+            Ok(json!({"name": table_name, "range": table_range.to_a1()}))
+        }),
+        crate::TableAction::Remove { name } => mutate(path, output, context, CommandName::Table, |workbook| {
+            let mut removed = false;
+            for sheet in &mut workbook.sheets {
+                let before = sheet.tables.len();
+                sheet.tables.retain(|table| !table.name.eq_ignore_ascii_case(&name));
+                removed |= sheet.tables.len() != before;
+            }
+            if !removed {
+                return Err(CommandError::new(
+                    ErrorCode::InvalidArgument,
+                    format!("表格不存在：{name}"),
+                ));
+            }
+            Ok(json!({"removed": name}))
+        }),
+    }
+}
+
+/// 一次打开/保存内应用多条 CELL=VALUE 编辑；任一项非法则整体失败不写。
+fn batch_edits(
+    workbook: &mut Workbook,
+    sets: &[String],
+    sheet: Option<&str>,
+) -> Result<Value, CommandError> {
+    let mut parsed = Vec::with_capacity(sets.len());
+    for entry in sets {
+        let (cell_reference, value) = entry.split_once('=').ok_or_else(|| {
+            CommandError::new(
+                ErrorCode::InvalidArgument,
+                format!("批量项应为 CELL=VALUE：{entry}"),
+            )
+        })?;
+        let default_index = resolve_sheet_index(workbook, sheet)?;
+        let (sheet_index, a1) = if cell_reference.contains('!') {
+            let context = parse_cell_context(workbook, cell_reference)?;
+            #[allow(clippy::cast_possible_truncation, reason = "行号在本库上限内远小于 u32::MAX")]
+            (context.sheet, format!("{}{}", easyexcel::model::addr::col_index_to_letters(context.col), context.row + 1))
+        } else {
+            (default_index, cell_reference.trim().to_owned())
+        };
+        let address = easyexcel::model::CellAddress::parse_a1(&a1).ok_or_else(|| {
+            CommandError::new(ErrorCode::InvalidArgument, format!("无效的单元格引用：{a1}"))
+        })?;
+        parsed.push((sheet_index, address.row, address.col, value.to_owned()));
+    }
+    // 全部解析通过后才落格：保证原子性。
+    for (sheet_index, row, column, value) in parsed {
+        let cell = parse_batch_value(&value);
+        let sheet_ref = workbook
+            .sheet_mut(sheet_index)
+            .ok_or_else(|| CommandError::new(ErrorCode::SheetNotFound, format!("工作表索引越界：{sheet_index}")))?;
+        sheet_ref.set(row, column, cell);
+    }
+    Engine::new().recalc(workbook);
+    Ok(json!({"edits": sets.len(), "applied": sets.len()}))
+}
+
+/// 把批量值文本解析为 Cell（公式/布尔/数值/文本），与终端语义一致。
+fn parse_batch_value(value: &str) -> easyexcel::model::Cell {
+    use easyexcel::model::Cell;
+    if let Some(expr) = value.strip_prefix('=') {
+        return Cell::Formula {
+            expr: expr.to_owned(),
+            cached: Default::default(),
+        };
+    }
+    if value.eq_ignore_ascii_case("true") {
+        return Cell::Bool(true);
+    }
+    if value.eq_ignore_ascii_case("false") {
+        return Cell::Bool(false);
+    }
+    if let Some(number) = easyexcel::formula::formula::coerce::parse_number_text(value) {
+        return Cell::Number(number);
+    }
+    Cell::Text(value.to_owned())
 }
 
 fn info(path: &Path, context: &ExecutionContext) -> Result<CommandResult, CommandError> {

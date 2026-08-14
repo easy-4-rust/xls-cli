@@ -7,6 +7,58 @@ use easyexcel::markdown::{MarkdownExportOptions, MarkdownImportOptions};
 
 use crate::{Aggregation, CellInput, CommandName, OutputFormat};
 
+/// `name` 命令的子动作。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, clap::Subcommand)]
+#[serde(tag = "action", rename_all = "kebab-case")]
+#[non_exhaustive]
+pub enum NameAction {
+    /// 列出全部定义名称。
+    List,
+    /// 新增或替换定义名称。
+    Add {
+        /// 名称标识。
+        name: String,
+        /// 引用目标（如 `Sheet1!$A$1:$B$9`）。
+        refers_to: String,
+        /// 限定作用域的工作表；缺省为工作簿级。
+        #[arg(long, short = 's')]
+        sheet: Option<String>,
+    },
+    /// 删除定义名称。
+    Remove {
+        /// 要删除的名称。
+        name: String,
+    },
+}
+
+/// `table` 命令的子动作。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, clap::Subcommand)]
+#[serde(tag = "action", rename_all = "kebab-case")]
+#[non_exhaustive]
+pub enum TableAction {
+    /// 列出全部表格对象。
+    List,
+    /// 在范围上创建表格（首行为表头）。
+    Add {
+        /// 范围，如 `A1:C20`。
+        range: String,
+        /// 表名；缺省 `Table1`、`Table2`…。
+        #[arg(long)]
+        name: Option<String>,
+        /// 范围所在工作表；缺省活跃表。
+        #[arg(long, short = 's')]
+        sheet: Option<String>,
+        /// 范围仅含数据（无表头行）。
+        #[arg(long)]
+        no_header: bool,
+    },
+    /// 按名称删除表格。
+    Remove {
+        /// 要删除的表名。
+        name: String,
+    },
+}
+
 /// 带类型的命令请求。路径使用平台原生 [`PathBuf`]，不强制 UTF-8。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "command", rename_all = "kebab-case")]
@@ -260,6 +312,36 @@ pub enum CommandRequest {
         sheet: Option<String>,
         output: Option<PathBuf>,
     },
+    /// 为范围设置字体/填充样式。
+    Style {
+        input: PathBuf,
+        range: String,
+        bold: bool,
+        italic: bool,
+        color: Option<String>,
+        bg: Option<String>,
+        sheet: Option<String>,
+        output: Option<PathBuf>,
+    },
+    /// 管理定义名称（命名范围）。
+    Name {
+        input: PathBuf,
+        action: NameAction,
+        output: Option<PathBuf>,
+    },
+    /// 管理 Excel 表格对象。
+    Table {
+        input: PathBuf,
+        action: TableAction,
+        output: Option<PathBuf>,
+    },
+    /// 一次打开保存内应用多条 CELL=VALUE 编辑（原子）。
+    Batch {
+        input: PathBuf,
+        sets: Vec<String>,
+        sheet: Option<String>,
+        output: Option<PathBuf>,
+    },
     /// 已进入协议但尚未迁入生产实现的命令。
     Planned {
         command_name: CommandName,
@@ -312,6 +394,10 @@ impl CommandRequest {
             Self::ToNumber { .. } => CommandName::ToNumber,
             Self::ToDate { .. } => CommandName::ToDate,
             Self::Autofit { .. } => CommandName::Autofit,
+            Self::Style { .. } => CommandName::Style,
+            Self::Name { .. } => CommandName::Name,
+            Self::Table { .. } => CommandName::Table,
+            Self::Batch { .. } => CommandName::Batch,
             Self::Planned { command_name, .. } => *command_name,
         }
     }

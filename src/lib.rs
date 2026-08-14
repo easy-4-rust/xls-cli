@@ -10,6 +10,6 @@ pub use cli::{
     Aggregation, CapabilityManifest, CapabilityStatus, CellInput, CommandCapability, CommandError,
     CommandExecutor, CommandName, CommandRequest, CommandResult, CommandWarning,
     DefaultCommandExecutor, ErrorCode, ExecutionContext, ExecutionMode, GeneratedFile,
-    MarkdownCapability, OutputFormat, OverwritePolicy, ResourceLimits, SchemaVersion, SecretString,
-    command_schema,
+    MarkdownCapability, NameAction, OutputFormat, OverwritePolicy, ResourceLimits, SchemaVersion,
+    SecretString, TableAction, command_schema,
 };

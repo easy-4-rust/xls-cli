@@ -89,14 +89,12 @@ impl CapabilityManifest {
             CommandName::ToNumber,
             CommandName::ToDate,
             CommandName::Autofit,
-        ];
-        const TERMINAL_ONLY: &[CommandName] = &[
-            CommandName::Open,
             CommandName::Style,
-            CommandName::Batch,
             CommandName::Name,
             CommandName::Table,
+            CommandName::Batch,
         ];
+        const TERMINAL_ONLY: &[CommandName] = &[CommandName::Open];
         let commands = SUPPORTED
             .iter()
             .map(|command| CommandCapability {

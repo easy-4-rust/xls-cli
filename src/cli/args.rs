@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use clap::{Parser, Subcommand, ValueEnum};
 
 use crate::Aggregation as CliAggregation;
+use crate::{NameAction as CliNameAction, TableAction as CliTableAction};
 
 /// 面向脚本和智能体的电子表格命令行。
 #[derive(Debug, Parser)]
@@ -401,6 +402,52 @@ pub(crate) enum Commands {
         /// 列范围（如 `A:C`）；缺省全部列。
         #[arg(long)]
         columns: Option<String>,
+        #[arg(long, short = 's')]
+        sheet: Option<String>,
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+    },
+    /// 为范围设置字体/填充样式。
+    Style {
+        input: PathBuf,
+        range: String,
+        #[arg(long)]
+        bold: bool,
+        #[arg(long)]
+        italic: bool,
+        /// 字体颜色（RRGGBB 十六进制）。
+        #[arg(long)]
+        color: Option<String>,
+        /// 填充底色（RRGGBB 十六进制）。
+        #[arg(long)]
+        bg: Option<String>,
+        #[arg(long, short = 's')]
+        sheet: Option<String>,
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+    },
+    /// 管理定义名称（list/add/rm）。
+    Name {
+        input: PathBuf,
+        #[command(subcommand)]
+        action: CliNameAction,
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+    },
+    /// 管理 Excel 表格对象（list/add/rm）。
+    Table {
+        input: PathBuf,
+        #[command(subcommand)]
+        action: CliTableAction,
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+    },
+    /// 一次保存内应用多条 CELL=VALUE 编辑（原子）。
+    Batch {
+        input: PathBuf,
+        /// 形如 `A1=值` 或 `Sheet1!A1=值` 的编辑项，可重复。
+        #[arg(long = "set")]
+        sets: Vec<String>,
         #[arg(long, short = 's')]
         sheet: Option<String>,
         #[arg(short, long)]

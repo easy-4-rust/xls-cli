@@ -41,7 +41,7 @@ pub use cell_input::CellInput;
 pub use command_error::{CommandError, ErrorCode};
 pub use command_executor::CommandExecutor;
 pub use command_name::CommandName;
-pub use command_request::CommandRequest;
+pub use command_request::{NameAction, TableAction, CommandRequest};
 pub use command_result::{CommandResult, GeneratedFile};
 pub use command_warning::CommandWarning;
 pub use default_command_executor::DefaultCommandExecutor;
