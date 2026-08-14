@@ -140,7 +140,7 @@ jobs:
             if npm view "${package_name}@${package_version}" version >/dev/null 2>&1; then
               echo "${package_name}@${package_version} is already published"
             else
-              npm publish "$package_dir" --access public --provenance
+              npm publish "$package_dir" --access public
             fi
           done
       - name: Publish npm launcher
@@ -152,7 +152,7 @@ jobs:
           if npm view "${package_name}@${package_version}" version >/dev/null 2>&1; then
             echo "${package_name}@${package_version} is already published"
           else
-            npm publish --access public --provenance
+            npm publish --access public
           fi
       - name: Build checksums and GitHub release assets
         run: |
