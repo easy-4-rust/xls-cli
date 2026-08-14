@@ -9,7 +9,10 @@ use easyexcel::model::Sheet;
 pub(crate) type RowSnap = (Vec<Option<Cell>>, Vec<Option<u32>>);
 
 /// 快照数据行 `start..end`（不含 end）及其单元格与样式。
-#[allow(clippy::cast_possible_truncation, reason = "列数在本库上限内远小于 u32::MAX")]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "列数在本库上限内远小于 u32::MAX"
+)]
 pub(crate) fn snapshot_rows(sheet: &Sheet, start: u32, end: u32, cols: u32) -> Vec<RowSnap> {
     (start..end)
         .map(|r| {
@@ -21,7 +24,10 @@ pub(crate) fn snapshot_rows(sheet: &Sheet, start: u32, end: u32, cols: u32) -> V
 }
 
 /// 清空数据行 `start..end` 后，把 `snap` 从 `start` 起连续写回。
-#[allow(clippy::cast_possible_truncation, reason = "行/列号在本库上限内远小于 u32::MAX")]
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "行/列号在本库上限内远小于 u32::MAX"
+)]
 pub(crate) fn rewrite_rows(sheet: &mut Sheet, start: u32, end: u32, cols: u32, snap: Vec<RowSnap>) {
     if cols == 0 || end <= start {
         return;

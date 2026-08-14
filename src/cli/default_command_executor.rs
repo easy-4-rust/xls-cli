@@ -268,11 +268,9 @@ impl CommandExecutor for DefaultCommandExecutor {
                 column,
                 sheet,
             } => profile(&input, &column, sheet.as_deref(), context),
-            CommandRequest::Eval {
-                input,
-                formula,
-                at,
-            } => eval(&input, &formula, at.as_deref(), context),
+            CommandRequest::Eval { input, formula, at } => {
+                eval(&input, &formula, at.as_deref(), context)
+            }
             CommandRequest::Format { input, cell } => format_cell(&input, &cell, context),
             CommandRequest::Filter {
                 input,
@@ -313,7 +311,15 @@ impl CommandExecutor for DefaultCommandExecutor {
                 sheet,
                 output,
             } => mutate(&input, output, context, command, |workbook| {
-                set_style(workbook, &range, bold, italic, color.as_deref(), bg.as_deref(), sheet.as_deref())
+                set_style(
+                    workbook,
+                    &range,
+                    bold,
+                    italic,
+                    color.as_deref(),
+                    bg.as_deref(),
+                    sheet.as_deref(),
+                )
             }),
             CommandRequest::Name {
                 input,
@@ -410,10 +416,7 @@ impl CommandExecutor for DefaultCommandExecutor {
 }
 
 /// 解析目标工作表：指定名称时要求存在；未指定时沿用活跃表（与终端 `grep` 一致）。
-fn resolve_sheet_index(
-    workbook: &Workbook,
-    sheet: Option<&str>,
-) -> Result<usize, CommandError> {
+fn resolve_sheet_index(workbook: &Workbook, sheet: Option<&str>) -> Result<usize, CommandError> {
     match sheet {
         Some(name) => workbook.sheet_index(name).ok_or_else(|| {
             CommandError::new(ErrorCode::SheetNotFound, format!("工作表不存在：{name}"))
@@ -466,14 +469,17 @@ fn grep(
 }
 
 /// 解析列规格：表头名（第 0 行，大小写不敏感）优先，其次列字母（如 `H` 或 `H:H`）。
-fn resolve_column(workbook: &Workbook, sheet_index: usize, specification: &str) -> Result<u32, CommandError> {
+fn resolve_column(
+    workbook: &Workbook,
+    sheet_index: usize,
+    specification: &str,
+) -> Result<u32, CommandError> {
     let trimmed = specification.trim();
-    let header = (0..workbook.sheets[sheet_index].dimensions().1)
-        .find(|&column| {
-            workbook
-                .display_cell(sheet_index, 0, column)
-                .eq_ignore_ascii_case(trimmed)
-        });
+    let header = (0..workbook.sheets[sheet_index].dimensions().1).find(|&column| {
+        workbook
+            .display_cell(sheet_index, 0, column)
+            .eq_ignore_ascii_case(trimmed)
+    });
     if let Some(column) = header {
         return Ok(column);
     }
@@ -569,7 +575,9 @@ fn profile(
     if text_numbers > 0 {
         result.warnings.push(CommandWarning::new(
             "NUMBERS_STORED_AS_TEXT",
-            format!("{text_numbers} 个值是文本存储的数字（SUM/AVERAGE 会忽略）——可用 to-number 转换"),
+            format!(
+                "{text_numbers} 个值是文本存储的数字（SUM/AVERAGE 会忽略）——可用 to-number 转换"
+            ),
         ));
     }
     if text_dates > 0 {
@@ -587,17 +595,24 @@ fn formula_value_json(value: &easyexcel::formula::Value) -> Value {
 }
 
 /// 解析 `[Sheet!]A1` 单元格上下文；sheet 名未命中时回退到第 0 张表（与终端一致）。
-fn parse_cell_context(workbook: &Workbook, specification: &str) -> Result<easyexcel::formula::CellRef, CommandError> {
-    let (sheet, a1) = specification.rsplit_once('!').map_or((0usize, specification), |(sheet, a1)| {
-        (
-            workbook
-                .sheet_index(sheet.trim_matches('\''))
-                .unwrap_or(0),
-            a1,
-        )
-    });
+fn parse_cell_context(
+    workbook: &Workbook,
+    specification: &str,
+) -> Result<easyexcel::formula::CellRef, CommandError> {
+    let (sheet, a1) =
+        specification
+            .rsplit_once('!')
+            .map_or((0usize, specification), |(sheet, a1)| {
+                (
+                    workbook.sheet_index(sheet.trim_matches('\'')).unwrap_or(0),
+                    a1,
+                )
+            });
     let address = easyexcel::model::CellAddress::parse_a1(a1).ok_or_else(|| {
-        CommandError::new(ErrorCode::InvalidArgument, format!("无效的单元格引用：{a1}"))
+        CommandError::new(
+            ErrorCode::InvalidArgument,
+            format!("无效的单元格引用：{a1}"),
+        )
     })?;
     Ok(easyexcel::formula::CellRef {
         sheet,
@@ -633,9 +648,7 @@ fn eval(
             let grid = (0..array.rows)
                 .map(|row| {
                     (0..array.cols)
-                        .map(|column| {
-                            formula_value_json(&array.data[row * array.cols + column])
-                        })
+                        .map(|column| formula_value_json(&array.data[row * array.cols + column]))
                         .collect::<Vec<_>>()
                 })
                 .collect::<Vec<_>>();
@@ -652,10 +665,9 @@ fn eval(
                 let cell = workbook
                     .sheets
                     .get(range.sheet)
-                    .map_or(
-                        easyexcel::model::value::CellValue::Empty,
-                        |sheet| sheet.value(row, column),
-                    );
+                    .map_or(easyexcel::model::value::CellValue::Empty, |sheet| {
+                        sheet.value(row, column)
+                    });
                 line.push(cell_value_json(&cell));
             }
             if !line.is_empty() {
@@ -682,12 +694,8 @@ fn format_cell(
 ) -> Result<CommandResult, CommandError> {
     let workbook = open_workbook(path, context)?;
     let at_ref = parse_cell_context(&workbook, cell)?;
-    let description = crate::cli::render::describe_number_format(
-        &workbook,
-        at_ref.sheet,
-        at_ref.row,
-        at_ref.col,
-    );
+    let description =
+        crate::cli::render::describe_number_format(&workbook, at_ref.sheet, at_ref.row, at_ref.col);
     let sheet_name = &workbook.sheets[at_ref.sheet].name;
     let data = json!({
         "cell": cell,
@@ -846,7 +854,10 @@ fn copy_move_workbook(
 ) -> Result<Value, CommandError> {
     let selection = resolve_selection(workbook, Some(source), sheet)?;
     let anchor = easyexcel::model::CellAddress::parse_a1(target).ok_or_else(|| {
-        CommandError::new(ErrorCode::InvalidArgument, format!("无效的目标单元格：{target}"))
+        CommandError::new(
+            ErrorCode::InvalidArgument,
+            format!("无效的目标单元格：{target}"),
+        )
     })?;
     let range = selection.range;
     let index = selection.sheet_index;
@@ -865,11 +876,7 @@ fn copy_move_workbook(
         workbook.sheets[index].clear_range(range);
     }
     for (row_offset, column_offset, cell) in payload {
-        workbook.sheets[index].set(
-            anchor.row + row_offset,
-            anchor.col + column_offset,
-            cell,
-        );
+        workbook.sheets[index].set(anchor.row + row_offset, anchor.col + column_offset, cell);
     }
     Engine::new().recalc(workbook);
     Ok(json!({
@@ -902,7 +909,9 @@ fn pivot(
         if key.is_empty() {
             continue;
         }
-        let entry = groups.entry(key).or_insert((0, 0.0, f64::INFINITY, f64::NEG_INFINITY));
+        let entry = groups
+            .entry(key)
+            .or_insert((0, 0.0, f64::INFINITY, f64::NEG_INFINITY));
         entry.0 += 1;
         if let easyexcel::model::value::CellValue::Number(n) =
             workbook.sheets[index].value(row, value_column)
@@ -933,7 +942,11 @@ fn pivot(
             crate::Aggregation::Mean => {
                 #[allow(clippy::cast_precision_loss, reason = "计数远小于 2^52")]
                 {
-                    if *count > 0 { *sum / *count as f64 } else { 0.0 }
+                    if *count > 0 {
+                        *sum / *count as f64
+                    } else {
+                        0.0
+                    }
                 }
             }
             crate::Aggregation::Min => *min,
@@ -988,11 +1001,7 @@ fn append_workbook(
             if let Some(add_column) = mapped
                 && let Some(cell) = addition.sheets[add_index].get(source_row, *add_column)
             {
-                workbook.sheets[base_index].set(
-                    destination_row,
-                    base_column as u32,
-                    cell.clone(),
-                );
+                workbook.sheets[base_index].set(destination_row, base_column as u32, cell.clone());
             }
         }
         appended += 1;
@@ -1057,7 +1066,10 @@ fn join(
 }
 
 /// 比较两工作簿：键列行键比较（added/removed/changed）或单元格级比较（cell）。
-#[allow(clippy::too_many_lines, reason = "双模式 diff 语义集中维护，拆散削弱协议审计性")]
+#[allow(
+    clippy::too_many_lines,
+    reason = "双模式 diff 语义集中维护，拆散削弱协议审计性"
+)]
 fn diff(
     left_path: &Path,
     right_path: &Path,
@@ -1094,8 +1106,11 @@ fn diff(
                 if row_key.is_empty() {
                     continue;
                 }
-                map.entry(row_key)
-                    .or_insert_with(|| (0..columns).map(|c| workbook.display_cell(index, row, c)).collect());
+                map.entry(row_key).or_insert_with(|| {
+                    (0..columns)
+                        .map(|c| workbook.display_cell(index, row, c))
+                        .collect()
+                });
             }
             map
         };
@@ -1148,9 +1163,7 @@ fn diff(
             for row in 0..rows {
                 for column in 0..cols {
                     let value_of = |workbook: &Workbook, index: Option<usize>| {
-                        index.map_or_else(String::new, |i| {
-                            workbook.display_cell(i, row, column)
-                        })
+                        index.map_or_else(String::new, |i| workbook.display_cell(i, row, column))
                     };
                     let left_value = value_of(&left, left_index);
                     let right_value = value_of(&right, right_index);
@@ -1213,8 +1226,7 @@ fn coerce_text_numbers(
     sheet: Option<&str>,
 ) -> Result<Value, CommandError> {
     let selection = resolve_selection(workbook, Some(range), sheet)?;
-    let converted =
-        workbook.sheets[selection.sheet_index].coerce_text_to_numbers(selection.range);
+    let converted = workbook.sheets[selection.sheet_index].coerce_text_to_numbers(selection.range);
     Ok(json!({"range": range, "converted": converted}))
 }
 
@@ -1236,7 +1248,11 @@ fn coerce_text_dates(
             _ => None,
         };
         if let Some(serial) = serial {
-            workbook.sheets[selection.sheet_index].set(row, column, easyexcel::model::Cell::Number(serial));
+            workbook.sheets[selection.sheet_index].set(
+                row,
+                column,
+                easyexcel::model::Cell::Number(serial),
+            );
             let mut style = workbook.sheets[selection.sheet_index]
                 .style_at(row, column)
                 .and_then(|index| workbook.styles.get(index).cloned())
@@ -1293,12 +1309,14 @@ fn parse_hex_color(specification: &str) -> Result<u32, CommandError> {
             format!("无效颜色（需 6 位十六进制 RRGGBB）：{specification}"),
         ));
     }
-    u32::from_str_radix(trimmed, 16).map(|rgb| 0xFF00_0000 | rgb).map_err(|_| {
-        CommandError::new(
-            ErrorCode::InvalidArgument,
-            format!("无效颜色（需 6 位十六进制 RRGGBB）：{specification}"),
-        )
-    })
+    u32::from_str_radix(trimmed, 16)
+        .map(|rgb| 0xFF00_0000 | rgb)
+        .map_err(|_| {
+            CommandError::new(
+                ErrorCode::InvalidArgument,
+                format!("无效颜色（需 6 位十六进制 RRGGBB）：{specification}"),
+            )
+        })
 }
 
 /// 为范围设置字体/填充样式（保留其它样式属性）。
@@ -1385,9 +1403,9 @@ fn name(
                 Some(specification) => Some(resolve_sheet_index(workbook, Some(specification))?),
                 None => None,
             };
-            workbook
-                .defined_names
-                .retain(|defined| !(defined.name.eq_ignore_ascii_case(&name) && defined.scope == scope));
+            workbook.defined_names.retain(|defined| {
+                !(defined.name.eq_ignore_ascii_case(&name) && defined.scope == scope)
+            });
             workbook.defined_names.push(easyexcel::model::DefinedName {
                 name: name.clone(),
                 refers_to: refers_to.clone(),
@@ -1396,23 +1414,26 @@ fn name(
             });
             Ok(json!({"name": name, "refers_to": refers_to}))
         }),
-        crate::NameAction::Remove { name } => mutate(path, output, context, CommandName::Name, |workbook| {
-            let before = workbook.defined_names.len();
-            workbook
-                .defined_names
-                .retain(|defined| !defined.name.eq_ignore_ascii_case(&name));
-            if workbook.defined_names.len() == before {
-                return Err(CommandError::new(
-                    ErrorCode::InvalidArgument,
-                    format!("定义名称不存在：{name}"),
-                ));
-            }
-            Ok(json!({"removed": name}))
-        }),
+        crate::NameAction::Remove { name } => {
+            mutate(path, output, context, CommandName::Name, |workbook| {
+                let before = workbook.defined_names.len();
+                workbook
+                    .defined_names
+                    .retain(|defined| !defined.name.eq_ignore_ascii_case(&name));
+                if workbook.defined_names.len() == before {
+                    return Err(CommandError::new(
+                        ErrorCode::InvalidArgument,
+                        format!("定义名称不存在：{name}"),
+                    ));
+                }
+                Ok(json!({"removed": name}))
+            })
+        }
     }
 }
 
 /// 管理 Excel 表格对象：List 为读，Add/Remove 走 mutate 管道。
+#[allow(clippy::too_many_lines, reason = "三子动作集中维护，拆散削弱协议审计性")]
 fn table(
     path: &Path,
     action: crate::TableAction,
@@ -1454,7 +1475,12 @@ fn table(
             let selection = resolve_selection(workbook, Some(&range), sheet.as_deref())?;
             let table_range = selection.range;
             let table_name = name.unwrap_or_else(|| {
-                let total = workbook.sheets.iter().map(|s| s.tables.len()).sum::<usize>() + 1;
+                let total = workbook
+                    .sheets
+                    .iter()
+                    .map(|s| s.tables.len())
+                    .sum::<usize>()
+                    + 1;
                 format!("Table{total}")
             });
             if workbook.table_by_name(&table_name).is_some() {
@@ -1470,7 +1496,11 @@ fn table(
                     if no_header {
                         format!("Column{}", offset + 1)
                     } else {
-                        let header = workbook.display_cell(selection.sheet_index, table_range.start.row, column);
+                        let header = workbook.display_cell(
+                            selection.sheet_index,
+                            table_range.start.row,
+                            column,
+                        );
                         if header.is_empty() {
                             format!("Column{}", offset + 1)
                         } else {
@@ -1493,21 +1523,25 @@ fn table(
                 });
             Ok(json!({"name": table_name, "range": table_range.to_a1()}))
         }),
-        crate::TableAction::Remove { name } => mutate(path, output, context, CommandName::Table, |workbook| {
-            let mut removed = false;
-            for sheet in &mut workbook.sheets {
-                let before = sheet.tables.len();
-                sheet.tables.retain(|table| !table.name.eq_ignore_ascii_case(&name));
-                removed |= sheet.tables.len() != before;
-            }
-            if !removed {
-                return Err(CommandError::new(
-                    ErrorCode::InvalidArgument,
-                    format!("表格不存在：{name}"),
-                ));
-            }
-            Ok(json!({"removed": name}))
-        }),
+        crate::TableAction::Remove { name } => {
+            mutate(path, output, context, CommandName::Table, |workbook| {
+                let mut removed = false;
+                for sheet in &mut workbook.sheets {
+                    let before = sheet.tables.len();
+                    sheet
+                        .tables
+                        .retain(|table| !table.name.eq_ignore_ascii_case(&name));
+                    removed |= sheet.tables.len() != before;
+                }
+                if !removed {
+                    return Err(CommandError::new(
+                        ErrorCode::InvalidArgument,
+                        format!("表格不存在：{name}"),
+                    ));
+                }
+                Ok(json!({"removed": name}))
+            })
+        }
     }
 }
 
@@ -1528,22 +1562,38 @@ fn batch_edits(
         let default_index = resolve_sheet_index(workbook, sheet)?;
         let (sheet_index, a1) = if cell_reference.contains('!') {
             let context = parse_cell_context(workbook, cell_reference)?;
-            #[allow(clippy::cast_possible_truncation, reason = "行号在本库上限内远小于 u32::MAX")]
-            (context.sheet, format!("{}{}", easyexcel::model::addr::col_index_to_letters(context.col), context.row + 1))
+            #[allow(
+                clippy::cast_possible_truncation,
+                reason = "行号在本库上限内远小于 u32::MAX"
+            )]
+            (
+                context.sheet,
+                format!(
+                    "{}{}",
+                    easyexcel::model::addr::col_index_to_letters(context.col),
+                    context.row + 1
+                ),
+            )
         } else {
             (default_index, cell_reference.trim().to_owned())
         };
         let address = easyexcel::model::CellAddress::parse_a1(&a1).ok_or_else(|| {
-            CommandError::new(ErrorCode::InvalidArgument, format!("无效的单元格引用：{a1}"))
+            CommandError::new(
+                ErrorCode::InvalidArgument,
+                format!("无效的单元格引用：{a1}"),
+            )
         })?;
         parsed.push((sheet_index, address.row, address.col, value.to_owned()));
     }
     // 全部解析通过后才落格：保证原子性。
     for (sheet_index, row, column, value) in parsed {
         let cell = parse_batch_value(&value);
-        let sheet_ref = workbook
-            .sheet_mut(sheet_index)
-            .ok_or_else(|| CommandError::new(ErrorCode::SheetNotFound, format!("工作表索引越界：{sheet_index}")))?;
+        let sheet_ref = workbook.sheet_mut(sheet_index).ok_or_else(|| {
+            CommandError::new(
+                ErrorCode::SheetNotFound,
+                format!("工作表索引越界：{sheet_index}"),
+            )
+        })?;
         sheet_ref.set(row, column, cell);
     }
     Engine::new().recalc(workbook);

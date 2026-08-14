@@ -204,7 +204,9 @@ pub(crate) fn mutation_target(
     if let Some(output) = output {
         return Ok(output);
     }
-    if context.overwrite() != OverwritePolicy::Replace && !matches!(context.mode(), ExecutionMode::DryRun) {
+    if context.overwrite() != OverwritePolicy::Replace
+        && !matches!(context.mode(), ExecutionMode::DryRun)
+    {
         // DryRun 允许就地预览：save_workbook 在 DryRun 下不会写盘。
         return Err(CommandError::new(
             ErrorCode::OverwriteDenied,

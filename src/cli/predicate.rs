@@ -86,7 +86,13 @@ impl Predicate {
     }
 
     /// 判断某行某列是否满足谓词（数值比较优先，回退显示值字典序）。
-    pub(crate) fn matches(&self, workbook: &Workbook, sheet_idx: usize, row: u32, col: u32) -> bool {
+    pub(crate) fn matches(
+        &self,
+        workbook: &Workbook,
+        sheet_idx: usize,
+        row: u32,
+        col: u32,
+    ) -> bool {
         use std::cmp::Ordering;
         let cell = workbook.sheets[sheet_idx].value(row, col);
         match self.op {

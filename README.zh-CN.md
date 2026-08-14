@@ -4,7 +4,7 @@
 
 仓库提供 library-first JSON 命令协议、完整的人类终端命令面、交互式 TUI、npm 原生包分发与 Agent Skill。生产代码只依赖 EasyExcel-Rust 组件，不依赖旧 `xls` fork。
 
-> 状态：当前工作区包含开发中改动。执行环境中 `xls capabilities --json` 的返回值才是支持命令的唯一事实来源。
+> 状态：v0.1.0。除交互式 `open` TUI 外全部动词均为结构化 `supported` 命令。以你运行的二进制的 `xls capabilities --json` 为准。
 
 ```text
 Agent Skill ─┐

@@ -397,15 +397,7 @@ pub(crate) fn into_request(command: Commands) -> Result<CommandRequest, String> 
             sheet,
             output,
         },
-        Commands::Eval {
-            input,
-            formula,
-            at,
-        } => CommandRequest::Eval {
-            input,
-            formula,
-            at,
-        },
+        Commands::Eval { input, formula, at } => CommandRequest::Eval { input, formula, at },
         Commands::Profile {
             input,
             column,

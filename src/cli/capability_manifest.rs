@@ -106,7 +106,7 @@ impl CapabilityManifest {
                 command: *command,
                 status: CapabilityStatus::Partial,
                 notes: vec![
-                    "交互终端命令已迁移并可执行；结构化 JSON 请求仍返回 UNSUPPORTED_COMMAND"
+                    "Migrated terminal command runs interactively; structured JSON requests still return UNSUPPORTED_COMMAND"
                         .to_owned(),
                 ],
             }))

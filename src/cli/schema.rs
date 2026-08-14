@@ -3,7 +3,10 @@ use serde_json::{Value, json};
 use crate::CommandName;
 
 /// 返回指定命令的简化 JSON Schema。
-#[allow(clippy::too_many_lines, reason = "命令 schema 集中维护，拆散削弱协议审计性")]
+#[allow(
+    clippy::too_many_lines,
+    reason = "命令 schema 集中维护，拆散削弱协议审计性"
+)]
 #[must_use]
 pub fn command_schema(command: CommandName) -> Value {
     let mut properties = serde_json::Map::new();
@@ -209,7 +212,10 @@ pub fn command_schema(command: CommandName) -> Value {
             properties.insert("range".to_owned(), json!({"type": "string"}));
             required.push(json!("range"));
             if matches!(command, CommandName::ToDate) {
-                properties.insert("format".to_owned(), json!({"type": "string", "description": "源文本日期格式"}));
+                properties.insert(
+                    "format".to_owned(),
+                    json!({"type": "string", "description": "源文本日期格式"}),
+                );
                 required.push(json!("format"));
             }
             properties.insert("sheet".to_owned(), json!({"type": ["string", "null"]}));
@@ -217,7 +223,10 @@ pub fn command_schema(command: CommandName) -> Value {
         }
         CommandName::Autofit => {
             add_path(&mut properties, &mut required, "input");
-            properties.insert("columns".to_owned(), json!({"type": ["string", "null"], "description": "列范围如 A:C；缺省全部"}));
+            properties.insert(
+                "columns".to_owned(),
+                json!({"type": ["string", "null"], "description": "列范围如 A:C；缺省全部"}),
+            );
             properties.insert("sheet".to_owned(), json!({"type": ["string", "null"]}));
             properties.insert("output".to_owned(), json!({"type": ["string", "null"]}));
         }
@@ -227,8 +236,14 @@ pub fn command_schema(command: CommandName) -> Value {
             required.push(json!("range"));
             properties.insert("bold".to_owned(), json!({"type": "boolean"}));
             properties.insert("italic".to_owned(), json!({"type": "boolean"}));
-            properties.insert("color".to_owned(), json!({"type": ["string", "null"], "description": "RRGGBB"}));
-            properties.insert("bg".to_owned(), json!({"type": ["string", "null"], "description": "RRGGBB"}));
+            properties.insert(
+                "color".to_owned(),
+                json!({"type": ["string", "null"], "description": "RRGGBB"}),
+            );
+            properties.insert(
+                "bg".to_owned(),
+                json!({"type": ["string", "null"], "description": "RRGGBB"}),
+            );
             properties.insert("sheet".to_owned(), json!({"type": ["string", "null"]}));
             properties.insert("output".to_owned(), json!({"type": ["string", "null"]}));
         }

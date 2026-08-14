@@ -213,10 +213,7 @@ pub enum CommandRequest {
         at: Option<String>,
     },
     /// 查询单元格的数字格式类别与格式代码。
-    Format {
-        input: PathBuf,
-        cell: String,
-    },
+    Format { input: PathBuf, cell: String },
     /// 按谓词过滤数据行（如 `amount>1000`），返回命中行集。
     Filter {
         input: PathBuf,

@@ -3,6 +3,7 @@
 //! 该模块同时承载稳定的命令协议、用例编排与终端参数适配；stdout、stderr
 //! 和进程退出仍由 [`runner`] 统一控制，避免业务执行器直接操作进程边界。
 
+mod aggregation;
 mod args;
 mod capability_manifest;
 mod cell_input;
@@ -17,12 +18,11 @@ mod easyexcel_components;
 mod execution_context;
 mod markdown_capability;
 mod output_format;
-mod aggregation;
 pub(crate) mod predicate;
-mod row_ops;
 mod query;
 mod render;
 mod request;
+mod row_ops;
 mod runner;
 mod schema;
 mod schema_version;
@@ -31,17 +31,17 @@ mod stream;
 mod terminal;
 mod workbook_io;
 
+pub use aggregation::Aggregation;
 pub(crate) use args::{
     Cli, CliMarkdownFormulaPolicy, CliMarkdownMergePolicy, CliMarkdownMode,
     CliMarkdownTypeInference, CliOutputFormat, Commands,
 };
-pub use aggregation::Aggregation;
 pub use capability_manifest::{CapabilityManifest, CapabilityStatus, CommandCapability};
 pub use cell_input::CellInput;
 pub use command_error::{CommandError, ErrorCode};
 pub use command_executor::CommandExecutor;
 pub use command_name::CommandName;
-pub use command_request::{NameAction, TableAction, CommandRequest};
+pub use command_request::{CommandRequest, NameAction, TableAction};
 pub use command_result::{CommandResult, GeneratedFile};
 pub use command_warning::CommandWarning;
 pub use default_command_executor::DefaultCommandExecutor;

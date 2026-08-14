@@ -4,7 +4,7 @@
 
 It provides a library-first JSON command protocol, a fuller human-terminal command surface, an interactive TUI, npm distribution for native binaries, and an agent Skill. Production code depends on EasyExcel-Rust components; it has no production dependency on the older `xls` fork.
 
-> Status: the workspace currently contains development changes. Treat `xls capabilities --json` from the binary you run as the authority for supported commands.
+> Status: v0.1.0. All verbs except the interactive `open` TUI are structured `supported` commands. Treat `xls capabilities --json` from the binary you run as the authority.
 
 ```text
 Agent Skill ─┐

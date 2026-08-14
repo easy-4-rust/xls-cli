@@ -15,10 +15,10 @@ use clap::{Parser, Subcommand, ValueEnum};
 use super::easyexcel_components as core;
 use super::easyexcel_components::formula::{CellRef, Engine};
 use super::easyexcel_components::model::{Cell, Workbook};
-use super::predicate::Predicate;
-use super::row_ops::{cmp_values, copy_row, display_of, rewrite_rows, snapshot_rows};
 #[cfg(test)]
 use super::easyexcel_components::value::CellValue;
+use super::predicate::Predicate;
+use super::row_ops::{cmp_values, copy_row, display_of, rewrite_rows, snapshot_rows};
 use super::{render, stream};
 
 // ─── Top-level CLI ──────────────────────────────────────────────────────────

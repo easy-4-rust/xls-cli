@@ -279,7 +279,10 @@ fn profile_reports_column_stats_and_text_storage_warnings() {
         .iter()
         .map(|warning| warning.code.as_str())
         .collect();
-    assert!(codes.contains(&"NUMBERS_STORED_AS_TEXT"), "警告集：{codes:?}");
+    assert!(
+        codes.contains(&"NUMBERS_STORED_AS_TEXT"),
+        "警告集：{codes:?}"
+    );
     assert!(codes.contains(&"DATES_STORED_AS_TEXT"), "警告集：{codes:?}");
     assert_eq!(result.data["text"], 3);
 }
@@ -867,7 +870,10 @@ fn group4_batch1_format_number_date_autofit() {
 }
 
 #[test]
-#[allow(clippy::too_many_lines, reason = "组4 批2 的端到端场景测试集中覆盖四类动词")]
+#[allow(
+    clippy::too_many_lines,
+    reason = "组4 批2 的端到端场景测试集中覆盖四类动词"
+)]
 fn group4_batch2_style_name_table_batch() {
     let directory = tempfile::tempdir().expect("temp directory");
     let markdown = directory.path().join("input.md");

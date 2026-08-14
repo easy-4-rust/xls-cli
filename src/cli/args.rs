@@ -260,10 +260,7 @@ pub(crate) enum Commands {
         at: Option<String>,
     },
     /// 查询单元格的数字格式（DATE/NUMBER/GENERAL 或格式代码）。
-    Format {
-        input: PathBuf,
-        cell: String,
-    },
+    Format { input: PathBuf, cell: String },
     /// 按谓词过滤数据行（如 `amount>1000` 或 `name~ali`）。
     Filter {
         input: PathBuf,

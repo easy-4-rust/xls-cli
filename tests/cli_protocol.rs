@@ -56,8 +56,7 @@ fn json_partial_commands_are_stable_unsupported_errors() {
             output.stderr.is_empty(),
             "partial 命令 `{command}` 的 stderr 应为空"
         );
-        let error: serde_json::Value =
-            serde_json::from_slice(&output.stdout).expect("JSON error");
+        let error: serde_json::Value = serde_json::from_slice(&output.stdout).expect("JSON error");
         assert_eq!(
             error["error"]["code"], "UNSUPPORTED_COMMAND",
             "partial 命令 `{command}` 的错误码"
@@ -105,9 +104,11 @@ fn group1_read_verbs_return_structured_contracts() {
     .expect("fixture");
     let markdown_text = markdown.to_string_lossy();
     let workbook_text = workbook_path.to_string_lossy();
-    assert!(run(&["import", &markdown_text, &workbook_text, "--json"])
-        .status
-        .success());
+    assert!(
+        run(&["import", &markdown_text, &workbook_text, "--json"])
+            .status
+            .success()
+    );
 
     let profile = run(&["profile", &workbook_text, "amount", "--json"]);
     assert!(profile.status.success());
@@ -130,6 +131,7 @@ fn group1_read_verbs_return_structured_contracts() {
 }
 
 #[test]
+#[allow(clippy::too_many_lines, reason = "组内多动词的进程级契约集中验证")]
 fn group2_group3_verbs_return_structured_contracts() {
     let directory = tempfile::tempdir().expect("temp directory");
     let markdown = directory.path().join("g23.md");
@@ -141,22 +143,67 @@ fn group2_group3_verbs_return_structured_contracts() {
     .expect("fixture");
     let markdown_text = markdown.to_string_lossy();
     let workbook_text = workbook_path.to_string_lossy();
-    assert!(run(&["import", &markdown_text, &workbook_text, "--json"])
-        .status
-        .success());
+    assert!(
+        run(&["import", &markdown_text, &workbook_text, "--json"])
+            .status
+            .success()
+    );
 
     for arguments in [
         vec!["filter", &workbook_text, "amount>40", "--json"],
-        vec!["pivot", &workbook_text, "--rows", "name", "--values", "amount", "--json"],
-        vec!["sort", &workbook_text, "--by", "amount", "--output",
-             &directory.path().join("s.xlsx").to_string_lossy(), "--json"],
-        vec!["dedup", &workbook_text, "--on", "name", "--output",
-             &directory.path().join("d.xlsx").to_string_lossy(), "--json"],
-        vec!["copy", &workbook_text, "A2:B2", "A5", "--output",
-             &directory.path().join("c.xlsx").to_string_lossy(), "--json"],
-        vec!["move", &workbook_text, "A2:B2", "A6", "--output",
-             &directory.path().join("m.xlsx").to_string_lossy(), "--json"],
-        vec!["join", &workbook_text, &workbook_text, "--on", "name", "--json"],
+        vec![
+            "pivot",
+            &workbook_text,
+            "--rows",
+            "name",
+            "--values",
+            "amount",
+            "--json",
+        ],
+        vec![
+            "sort",
+            &workbook_text,
+            "--by",
+            "amount",
+            "--output",
+            &directory.path().join("s.xlsx").to_string_lossy(),
+            "--json",
+        ],
+        vec![
+            "dedup",
+            &workbook_text,
+            "--on",
+            "name",
+            "--output",
+            &directory.path().join("d.xlsx").to_string_lossy(),
+            "--json",
+        ],
+        vec![
+            "copy",
+            &workbook_text,
+            "A2:B2",
+            "A5",
+            "--output",
+            &directory.path().join("c.xlsx").to_string_lossy(),
+            "--json",
+        ],
+        vec![
+            "move",
+            &workbook_text,
+            "A2:B2",
+            "A6",
+            "--output",
+            &directory.path().join("m.xlsx").to_string_lossy(),
+            "--json",
+        ],
+        vec![
+            "join",
+            &workbook_text,
+            &workbook_text,
+            "--on",
+            "name",
+            "--json",
+        ],
         vec!["diff", &workbook_text, &workbook_text, "--json"],
     ] {
         let output = run(&arguments);
@@ -170,8 +217,7 @@ fn group2_group3_verbs_return_structured_contracts() {
             "命令 {:?} 的 stderr 应为空",
             arguments.first()
         );
-        let value: serde_json::Value =
-            serde_json::from_slice(&output.stdout).expect("JSON");
+        let value: serde_json::Value = serde_json::from_slice(&output.stdout).expect("JSON");
         assert_eq!(
             value["command"],
             serde_json::json!(arguments.first().unwrap().to_string())
@@ -179,9 +225,18 @@ fn group2_group3_verbs_return_structured_contracts() {
     }
 
     // append 需要两个输入
-    let appended = directory.path().join("a.xlsx").to_string_lossy().to_string();
+    let appended = directory
+        .path()
+        .join("a.xlsx")
+        .to_string_lossy()
+        .to_string();
     let output = run(&[
-        "append", &workbook_text, &workbook_text, "--output", &appended, "--json",
+        "append",
+        &workbook_text,
+        &workbook_text,
+        "--output",
+        &appended,
+        "--json",
     ]);
     assert!(output.status.success());
     let value: serde_json::Value = serde_json::from_slice(&output.stdout).expect("JSON");
@@ -190,6 +245,7 @@ fn group2_group3_verbs_return_structured_contracts() {
 }
 
 #[test]
+#[allow(clippy::too_many_lines, reason = "组内多动词的进程级契约集中验证")]
 fn group4_verbs_return_structured_contracts() {
     let directory = tempfile::tempdir().expect("temp directory");
     let markdown = directory.path().join("g4.md");
@@ -201,28 +257,91 @@ fn group4_verbs_return_structured_contracts() {
     .expect("fixture");
     let markdown_text = markdown.to_string_lossy();
     let workbook_text = workbook_path.to_string_lossy();
-    assert!(run(&["import", &markdown_text, &workbook_text, "--json"])
-        .status
-        .success());
+    assert!(
+        run(&["import", &markdown_text, &workbook_text, "--json"])
+            .status
+            .success()
+    );
 
     for arguments in [
-        vec!["format-set", &workbook_text, "B2:B3", "dd/mm/yyyy", "--output",
-             &directory.path().join("a.xlsx").to_string_lossy(), "--json"],
-        vec!["to-number", &workbook_text, "A2:A3", "--output",
-             &directory.path().join("b.xlsx").to_string_lossy(), "--json"],
-        vec!["to-date", &workbook_text, "B2:B3", "--format", "dd/mm/yyyy", "--output",
-             &directory.path().join("c.xlsx").to_string_lossy(), "--json"],
-        vec!["autofit", &workbook_text, "--output",
-             &directory.path().join("d.xlsx").to_string_lossy(), "--json"],
-        vec!["style", &workbook_text, "A1:B1", "--bold", "--bg", "FFFF00", "--output",
-             &directory.path().join("e.xlsx").to_string_lossy(), "--json"],
-        vec!["batch", &workbook_text, "--set", "A9=done", "--set", "B9=2", "--output",
-             &directory.path().join("f.xlsx").to_string_lossy(), "--json"],
-        vec!["name", &workbook_text, "add", "Total", "Table1!$A$1", "--output",
-             &directory.path().join("g.xlsx").to_string_lossy(), "--json"],
+        vec![
+            "format-set",
+            &workbook_text,
+            "B2:B3",
+            "dd/mm/yyyy",
+            "--output",
+            &directory.path().join("a.xlsx").to_string_lossy(),
+            "--json",
+        ],
+        vec![
+            "to-number",
+            &workbook_text,
+            "A2:A3",
+            "--output",
+            &directory.path().join("b.xlsx").to_string_lossy(),
+            "--json",
+        ],
+        vec![
+            "to-date",
+            &workbook_text,
+            "B2:B3",
+            "--format",
+            "dd/mm/yyyy",
+            "--output",
+            &directory.path().join("c.xlsx").to_string_lossy(),
+            "--json",
+        ],
+        vec![
+            "autofit",
+            &workbook_text,
+            "--output",
+            &directory.path().join("d.xlsx").to_string_lossy(),
+            "--json",
+        ],
+        vec![
+            "style",
+            &workbook_text,
+            "A1:B1",
+            "--bold",
+            "--bg",
+            "FFFF00",
+            "--output",
+            &directory.path().join("e.xlsx").to_string_lossy(),
+            "--json",
+        ],
+        vec![
+            "batch",
+            &workbook_text,
+            "--set",
+            "A9=done",
+            "--set",
+            "B9=2",
+            "--output",
+            &directory.path().join("f.xlsx").to_string_lossy(),
+            "--json",
+        ],
+        vec![
+            "name",
+            &workbook_text,
+            "add",
+            "Total",
+            "Table1!$A$1",
+            "--output",
+            &directory.path().join("g.xlsx").to_string_lossy(),
+            "--json",
+        ],
         vec!["name", &workbook_text, "list", "--json"],
-        vec!["table", &workbook_text, "add", "A1:B3", "--name", "SalesTable", "--output",
-             &directory.path().join("h.xlsx").to_string_lossy(), "--json"],
+        vec![
+            "table",
+            &workbook_text,
+            "add",
+            "A1:B3",
+            "--name",
+            "SalesTable",
+            "--output",
+            &directory.path().join("h.xlsx").to_string_lossy(),
+            "--json",
+        ],
         vec!["table", &workbook_text, "list", "--json"],
     ] {
         let output = run(&arguments);
@@ -237,8 +356,7 @@ fn group4_verbs_return_structured_contracts() {
             "命令 {:?} 的 stderr 应为空",
             arguments.first()
         );
-        let value: serde_json::Value =
-            serde_json::from_slice(&output.stdout).expect("JSON");
+        let value: serde_json::Value = serde_json::from_slice(&output.stdout).expect("JSON");
         let command = value["command"].as_str().unwrap_or_default().to_owned();
         assert_eq!(
             Some(command.as_str()),
