@@ -239,6 +239,29 @@ pub(crate) fn into_request(command: Commands) -> Result<CommandRequest, String> 
             sheet,
             output,
         },
+        Commands::Append {
+            input,
+            with,
+            sheet,
+            output,
+        } => CommandRequest::Append {
+            input,
+            with,
+            sheet,
+            output,
+        },
+        Commands::Join { input, with, on } => CommandRequest::Join { input, with, on },
+        Commands::Diff {
+            input,
+            with,
+            key,
+            sheet,
+        } => CommandRequest::Diff {
+            input,
+            with,
+            key,
+            sheet,
+        },
         Commands::Pivot {
             input,
             rows,

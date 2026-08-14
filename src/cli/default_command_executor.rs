@@ -303,6 +303,22 @@ impl CommandExecutor for DefaultCommandExecutor {
                 agg,
                 sheet,
             } => pivot(&input, &rows, &values, agg, sheet.as_deref(), context),
+            CommandRequest::Append {
+                input,
+                with,
+                sheet,
+                output,
+            } => mutate(&input, output, context, command, |workbook| {
+                let addition = open_workbook(&with, context)?;
+                append_workbook(workbook, &addition, sheet.as_deref())
+            }),
+            CommandRequest::Join { input, with, on } => join(&input, &with, &on, context),
+            CommandRequest::Diff {
+                input,
+                with,
+                key,
+                sheet,
+            } => diff(&input, &with, key.as_deref(), sheet.as_deref(), context),
             CommandRequest::Copy {
                 input,
                 source,
@@ -871,6 +887,234 @@ fn pivot(
     });
     let mut result = CommandResult::new(CommandName::Pivot, data, is_dry_run(context));
     result.stats.insert("groups".to_owned(), group_count as u64);
+    Ok(result)
+}
+
+/// 按表头名对齐，把 `addition` 的数据行追加到 `workbook`（保持列序）。
+#[allow(clippy::cast_possible_truncation, reason = "列数远小于 u32::MAX")]
+fn append_workbook(
+    workbook: &mut Workbook,
+    addition: &Workbook,
+    sheet: Option<&str>,
+) -> Result<Value, CommandError> {
+    let base_index = resolve_sheet_index(workbook, sheet)?;
+    let add_index = resolve_sheet_index(addition, sheet)?;
+    let (base_rows, base_columns) = workbook.sheets[base_index].dimensions();
+    let (add_rows, _) = addition.sheets[add_index].dimensions();
+
+    let column_map: Vec<Option<u32>> = (0..base_columns)
+        .map(|column| {
+            let header = workbook.display_cell(base_index, 0, column);
+            if header.is_empty() {
+                None
+            } else {
+                (0..addition.sheets[add_index].dimensions().1).find(|&candidate| {
+                    addition
+                        .display_cell(add_index, 0, candidate)
+                        .eq_ignore_ascii_case(&header)
+                })
+            }
+        })
+        .collect();
+
+    let mut appended = 0u32;
+    for source_row in 1..add_rows {
+        let destination_row = base_rows + appended;
+        for (base_column, mapped) in column_map.iter().enumerate() {
+            if let Some(add_column) = mapped
+                && let Some(cell) = addition.sheets[add_index].get(source_row, *add_column)
+            {
+                workbook.sheets[base_index].set(
+                    destination_row,
+                    base_column as u32,
+                    cell.clone(),
+                );
+            }
+        }
+        appended += 1;
+    }
+    Ok(json!({ "appended": appended }))
+}
+
+/// 两工作簿按键列做内连接：左表头 + 右表头，行 = 左行 × 键相等右行。
+fn join(
+    left_path: &Path,
+    right_path: &Path,
+    on: &str,
+    context: &ExecutionContext,
+) -> Result<CommandResult, CommandError> {
+    let left = open_workbook(left_path, context)?;
+    let right = open_workbook(right_path, context)?;
+    let left_index = resolve_sheet_index(&left, None)?;
+    let right_index = resolve_sheet_index(&right, None)?;
+    let left_key = resolve_column(&left, left_index, on)?;
+    let right_key = resolve_column(&right, right_index, on)?;
+    let (left_rows, left_columns) = left.sheets[left_index].dimensions();
+    let (right_rows, right_columns) = right.sheets[right_index].dimensions();
+
+    let mut right_index_by_key: std::collections::HashMap<String, Vec<u32>> =
+        std::collections::HashMap::new();
+    for row in 1..right_rows {
+        let key = right.display_cell(right_index, row, right_key);
+        if !key.is_empty() {
+            right_index_by_key.entry(key).or_default().push(row);
+        }
+    }
+
+    let headers = (0..left_columns)
+        .map(|column| left.display_cell(left_index, 0, column))
+        .chain((0..right_columns).map(|column| right.display_cell(right_index, 0, column)))
+        .collect::<Vec<_>>();
+    let mut rows = Vec::new();
+    for left_row in 1..left_rows {
+        let key = left.display_cell(left_index, left_row, left_key);
+        let Some(matches) = right_index_by_key.get(&key) else {
+            continue;
+        };
+        for &right_row in matches {
+            let mut line = (0..left_columns)
+                .map(|column| cell_value_json(&left.sheets[left_index].value(left_row, column)))
+                .collect::<Vec<_>>();
+            line.extend((0..right_columns).map(|column| {
+                cell_value_json(&right.sheets[right_index].value(right_row, column))
+            }));
+            rows.push(line);
+        }
+    }
+    let row_count = rows.len();
+    let data = json!({
+        "on": on,
+        "columns": headers,
+        "rows": rows,
+    });
+    let mut result = CommandResult::new(CommandName::Join, data, is_dry_run(context));
+    result.stats.insert("rows".to_owned(), row_count as u64);
+    Ok(result)
+}
+
+/// 比较两工作簿：键列行键比较（added/removed/changed）或单元格级比较（cell）。
+#[allow(clippy::too_many_lines, reason = "双模式 diff 语义集中维护，拆散削弱协议审计性")]
+fn diff(
+    left_path: &Path,
+    right_path: &Path,
+    key: Option<&str>,
+    sheet: Option<&str>,
+    context: &ExecutionContext,
+) -> Result<CommandResult, CommandError> {
+    let left = open_workbook(left_path, context)?;
+    let right = open_workbook(right_path, context)?;
+    let mut differences = Vec::new();
+    let mode = if let Some(key) = key {
+        let left_index = resolve_sheet_index(&left, sheet)?;
+        let right_index = resolve_sheet_index(&right, sheet)?;
+        let left_key = resolve_column(&left, left_index, key)?;
+        let right_key = resolve_column(&right, right_index, key)?;
+        let (left_rows, left_columns) = left.sheets[left_index].dimensions();
+        let (right_rows, right_columns) = right.sheets[right_index].dimensions();
+        let columns = left_columns.max(right_columns);
+        let headers = (0..columns)
+            .map(|column| {
+                let header = left.display_cell(left_index, 0, column);
+                if header.is_empty() {
+                    easyexcel::model::addr::col_index_to_letters(column)
+                } else {
+                    header
+                }
+            })
+            .collect::<Vec<_>>();
+        let collect = |workbook: &Workbook, index: usize, rows: u32, key_column: u32| {
+            let mut map: std::collections::BTreeMap<String, Vec<String>> =
+                std::collections::BTreeMap::new();
+            for row in 1..rows {
+                let row_key = workbook.display_cell(index, row, key_column);
+                if row_key.is_empty() {
+                    continue;
+                }
+                map.entry(row_key)
+                    .or_insert_with(|| (0..columns).map(|c| workbook.display_cell(index, row, c)).collect());
+            }
+            map
+        };
+        let left_map = collect(&left, left_index, left_rows, left_key);
+        let right_map = collect(&right, right_index, right_rows, right_key);
+        for (row_key, right_values) in &right_map {
+            if let Some(left_values) = left_map.get(row_key) {
+                let changed: Vec<Value> = left_values
+                    .iter()
+                    .zip(right_values.iter())
+                    .enumerate()
+                    .filter(|(_, (a, b))| a != b)
+                    .map(|(column, (a, b))| {
+                        json!({"column": headers.get(column).cloned().unwrap_or_default(),
+                               "left": a, "right": b})
+                    })
+                    .collect();
+                if !changed.is_empty() {
+                    differences.push(json!({"kind": "changed", "key": row_key, "fields": changed}));
+                }
+            } else {
+                differences.push(json!({"kind": "added", "key": row_key}));
+            }
+        }
+        for row_key in left_map.keys() {
+            if !right_map.contains_key(row_key) {
+                differences.push(json!({"kind": "removed", "key": row_key}));
+            }
+        }
+        "keyed"
+    } else {
+        // 单元格级：工作表并集逐格比较显示值。
+        let mut names: Vec<String> = Vec::new();
+        let mut seen = std::collections::HashSet::new();
+        for sheet_entry in left.sheets.iter().chain(right.sheets.iter()) {
+            if seen.insert(sheet_entry.name.to_ascii_lowercase()) {
+                names.push(sheet_entry.name.clone());
+            }
+        }
+        for name in &names {
+            let left_index = left.sheet_index(name);
+            let right_index = right.sheet_index(name);
+            let dims = |workbook: &Workbook, index: Option<usize>| {
+                index.map_or((0, 0), |i| workbook.sheets[i].dimensions())
+            };
+            let (rows_left, cols_left) = dims(&left, left_index);
+            let (rows_right, cols_right) = dims(&right, right_index);
+            let rows = rows_left.max(rows_right);
+            let cols = cols_left.max(cols_right);
+            for row in 0..rows {
+                for column in 0..cols {
+                    let value_of = |workbook: &Workbook, index: Option<usize>| {
+                        index.map_or_else(String::new, |i| {
+                            workbook.display_cell(i, row, column)
+                        })
+                    };
+                    let left_value = value_of(&left, left_index);
+                    let right_value = value_of(&right, right_index);
+                    if left_value != right_value {
+                        differences.push(json!({
+                            "kind": "cell",
+                            "sheet": name,
+                            "address": format!(
+                                "{}{}",
+                                easyexcel::model::addr::col_index_to_letters(column),
+                                row + 1
+                            ),
+                            "left": if left_value.is_empty() { Value::Null } else { json!(left_value) },
+                            "right": if right_value.is_empty() { Value::Null } else { json!(right_value) },
+                        }));
+                    }
+                }
+            }
+        }
+        "cell"
+    };
+    let count = differences.len();
+    let data = json!({
+        "mode": mode,
+        "differences": differences,
+    });
+    let mut result = CommandResult::new(CommandName::Diff, data, is_dry_run(context));
+    result.stats.insert("differences".to_owned(), count as u64);
     Ok(result)
 }
 

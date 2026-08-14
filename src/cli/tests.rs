@@ -664,6 +664,103 @@ fn pivot_groups_and_aggregates_into_rows() {
 }
 
 #[test]
+fn multi_input_verbs_append_join_diff() {
+    let directory = tempfile::tempdir().expect("temp directory");
+    let base_md = directory.path().join("base.md");
+    let base = directory.path().join("base.xlsx");
+    let add_md = directory.path().join("add.md");
+    let add = directory.path().join("add.xlsx");
+    fs::write(
+        &base_md,
+        "| id | note |\n| --- | --- |\n| a | x |\n| b | y |\n",
+    )
+    .expect("base fixture");
+    fs::write(
+        &add_md,
+        "| note | id |\n| --- | --- |\n| z | c |\n| w | a |\n",
+    )
+    .expect("add fixture");
+    let executor = DefaultCommandExecutor::new();
+    for (input_md, output) in [(&base_md, &base), (&add_md, &add)] {
+        executor
+            .execute(
+                CommandRequest::Import {
+                    input: input_md.clone(),
+                    output: output.clone(),
+                    markdown_options: None,
+                },
+                &ExecutionContext::new(),
+            )
+            .expect("import");
+    }
+
+    // append：按表头名对齐（add 列序不同也应对齐），追加 2 行
+    let appended = directory.path().join("appended.xlsx");
+    let result = executor
+        .execute(
+            CommandRequest::Append {
+                input: base.clone(),
+                with: add.clone(),
+                sheet: None,
+                output: Some(appended.clone()),
+            },
+            &ExecutionContext::new(),
+        )
+        .expect("append");
+    assert_eq!(result.data["appended"], 2);
+    let readback = executor
+        .execute(
+            CommandRequest::Get {
+                input: appended,
+                range: Some("Table1!A4:B5".to_owned()),
+                output_format: OutputFormat::Json,
+            },
+            &ExecutionContext::new(),
+        )
+        .expect("read back append");
+    assert_eq!(readback.data["rows"][0][0], "c");
+    assert_eq!(readback.data["rows"][0][1], "z");
+
+    // join：id 相等内连接
+    let result = executor
+        .execute(
+            CommandRequest::Join {
+                input: base.clone(),
+                with: add.clone(),
+                on: "id".to_owned(),
+            },
+            &ExecutionContext::new(),
+        )
+        .expect("join");
+    let rows = result.data["rows"].as_array().expect("rows");
+    assert_eq!(rows.len(), 1, "只有 a 同时存在");
+    assert_eq!(rows[0][0], "a");
+    assert_eq!(result.stats["rows"], 1);
+
+    // diff keyed：c 为新增（+），b 为删除（-）
+    let result = executor
+        .execute(
+            CommandRequest::Diff {
+                input: base,
+                with: add,
+                key: Some("id".to_owned()),
+                sheet: None,
+            },
+            &ExecutionContext::new(),
+        )
+        .expect("diff");
+    let kinds: Vec<&str> = result.data["differences"]
+        .as_array()
+        .expect("differences")
+        .iter()
+        .map(|entry| entry["kind"].as_str().expect("kind"))
+        .collect();
+    assert!(kinds.contains(&"added"), "kinds: {kinds:?}");
+    assert!(kinds.contains(&"removed"), "kinds: {kinds:?}");
+    assert_eq!(result.stats["differences"], kinds.len() as u64);
+}
+
+#[test]
 fn query_engine_is_available_through_command_contract() {
     let directory = tempfile::tempdir().expect("temp directory");
     let markdown = directory.path().join("query.md");

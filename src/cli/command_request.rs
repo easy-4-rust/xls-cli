@@ -210,6 +210,26 @@ pub enum CommandRequest {
         agg: Aggregation,
         sheet: Option<String>,
     },
+    /// 按表头名对齐，把另一工作簿的数据行追加到当前工作簿。
+    Append {
+        input: PathBuf,
+        with: PathBuf,
+        sheet: Option<String>,
+        output: Option<PathBuf>,
+    },
+    /// 两工作簿按键列做内连接，返回合并行集。
+    Join {
+        input: PathBuf,
+        with: PathBuf,
+        on: String,
+    },
+    /// 比较两工作簿；提供键列时做行键比较，否则做单元格级比较。
+    Diff {
+        input: PathBuf,
+        with: PathBuf,
+        key: Option<String>,
+        sheet: Option<String>,
+    },
     /// 已进入协议但尚未迁入生产实现的命令。
     Planned {
         command_name: CommandName,
@@ -255,6 +275,9 @@ impl CommandRequest {
             Self::Copy { .. } => CommandName::Copy,
             Self::Move { .. } => CommandName::Move,
             Self::Pivot { .. } => CommandName::Pivot,
+            Self::Append { .. } => CommandName::Append,
+            Self::Join { .. } => CommandName::Join,
+            Self::Diff { .. } => CommandName::Diff,
             Self::Planned { command_name, .. } => *command_name,
         }
     }

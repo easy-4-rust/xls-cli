@@ -333,6 +333,35 @@ pub(crate) enum Commands {
         #[arg(long, short = 's')]
         sheet: Option<String>,
     },
+    /// 按表头名对齐，把另一工作簿的数据行追加进来。
+    Append {
+        /// 基础工作簿（行追加到这里）。
+        input: PathBuf,
+        /// 数据来源工作簿。
+        with: PathBuf,
+        #[arg(long, short = 's')]
+        sheet: Option<String>,
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+    },
+    /// 两工作簿按键列做内连接。
+    Join {
+        input: PathBuf,
+        with: PathBuf,
+        /// 连接键列（字母或表头名），两侧同名。
+        #[arg(long)]
+        on: String,
+    },
+    /// 比较两工作簿（键列行键比较或单元格级比较）。
+    Diff {
+        input: PathBuf,
+        with: PathBuf,
+        /// 键列（字母或表头名）做行级比较。
+        #[arg(long)]
+        key: Option<String>,
+        #[arg(long, short = 's')]
+        sheet: Option<String>,
+    },
     /// 输出机器可读能力清单。
     Capabilities,
     /// 输出指定命令的 JSON Schema。
