@@ -86,6 +86,7 @@ impl Predicate {
     }
 
     /// 判断某行某列是否满足谓词（数值比较优先，回退显示值字典序）。
+    #[allow(clippy::min_ident_chars, reason = "数学比较的惯用短名（wb/x/y/a/b）继承自原 terminal 实现")]
     pub(crate) fn matches(&self, wb: &Workbook, sheet_idx: usize, row: u32, col: u32) -> bool {
         use std::cmp::Ordering;
         let v = wb.sheets[sheet_idx].value(row, col);
