@@ -252,10 +252,18 @@ openclaw/Hermes 等智能体通过 SKILL.md 无禁用清单地安全使用全部
 - 协议演进：DryRun 允许就地预览（mutation_target/validate_target），与 terminal guardrail
   语义一致；嵌套子命令（name/table）的 `--output` 为 global。
 
-## 剩余外部步骤（需发布凭证，未在本会话执行）
+## 剩余外部步骤 —— 已于 2026-08-14 执行完毕
 
-1. `git push` + 打 tag（触发 release.yml 构建 8 平台包并附 SHA256SUMS）。
-2. npm 发布顺序：先 8 个 `packages/*` 平台包，再发根 launcher 包
-   （`@partme.ai/xls-cli`）。
-3. 发布后验证：`npx @partme.ai/xls-cli capabilities --json`（至少 darwin-arm64 与
-   linux-x64）、`npx skills add easy-4-rust/xls-cli`。
+1. ✅ push main + tag v0.1.0（移动到最终 commit）触发 release.yml：8 平台构建全部
+   成功（发布前修正了 CI 固定的 easyexcel-rust ref：92c7f8c[0.1.0] → 4dca346[0.1.3]，
+   否则 --locked 必败——这正是 8 月 6 日发布失败的原因）。
+2. ✅ CI publish 因 npm --provenance 把目录参数误解析为 git shorthand 失败；改为
+   本地发布：下载 8 平台 artifacts → 本地 `npm publish`（8 平台包 + launcher，
+   --access public）。release.yml 已去掉 --provenance 供未来使用。
+3. ✅ GitHub release v0.1.0 创建：8 个平台二进制 + SHA256SUMS。
+4. ✅ 端到端验证：`npm view` dist-tags.latest=0.1.0；`npm install` + `npx xls
+   --version`=0.1.0；`import` markdown→xlsx + `eval =SUM` 全链路通过（darwin-arm64）。
+   注：新包根 packument 元数据有数分钟传播延迟（tarball 与版本端点即时可用）。
+
+副产物修复：rustfmt 1.88 长属性折行、clippy 1.88 `&&str.to_string` —— CI 工具链
+与本地新工具链的差异，main ci 已绿。
