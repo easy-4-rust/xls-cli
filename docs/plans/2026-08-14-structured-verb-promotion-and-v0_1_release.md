@@ -1,6 +1,6 @@
 # Plan: xls-cli 结构化动词全量提升与 v0.1.0 首发
 
-- 状态：执行中
+- 状态：已完成（代码与本地发布准备；npm 实际发布待执行，见“剩余外部步骤”）
 - 日期：2026-08-14
 - 格式：Superpowers 计划（writing-plans / executing-plans 纪律）
 
@@ -136,35 +136,35 @@ openclaw/Hermes 等智能体通过 SKILL.md 无禁用清单地安全使用全部
 
 技术方案 P2 组4 门槛：格式/元数据 result、原子性、覆盖保护。全部 mutate 管道。
 
-- [ ] **Task 4.1 format-set（mutate）**：data = `{range, format_code, cells: N}`；回读用
+- [x] **Task 4.1 format-set（mutate）**：data = `{range, format_code, cells: N}`；回读用
   `format` 命令断言。
-- [ ] **Task 4.2 to-number（mutate）**：复用 `Sheet::coerce_text_to_numbers`
+- [x] **Task 4.2 to-number（mutate）**：复用 `Sheet::coerce_text_to_numbers`
   （terminal.rs:966 内联逻辑提取）；data = `{converted: N}`；回读 `get --raw` 断言数值化。
-- [ ] **Task 4.3 to-date（mutate）**：复用 cmd_to_date（:2010）；data =
+- [x] **Task 4.3 to-date（mutate）**：复用 cmd_to_date（:2010）；data =
   `{converted: N, format}`。
-- [ ] **Task 4.4 style（mutate）**：bold/bg 等映射到 easyexcel styles（Color/FillPattern，
+- [x] **Task 4.4 style（mutate）**：bold/bg 等映射到 easyexcel styles（Color/FillPattern，
   经 easyexcel_components）；data = `{range, properties}`。
-- [ ] **Task 4.5 autofit（mutate）**：列宽计算复用 terminal 实现；data = `{columns: N}`。
-- [ ] **Task 4.6 name（mutate，子动作）**：`CommandRequest::Name { action: add|remove|list }`；
+- [x] **Task 4.5 autofit（mutate）**：列宽计算复用 terminal 实现；data = `{columns: N}`。
+- [x] **Task 4.6 name（mutate，子动作）**：`CommandRequest::Name { action: add|remove|list }`；
   list 为读（data = `{names: [...]}`），add/remove 为 mutate。与 terminal 的 NameAction
   语义对齐。
-- [ ] **Task 4.7 table（mutate，子动作）**：同上模式（add/remove/list）。
-- [ ] **Task 4.8 batch（mutate，原子性核心）**
+- [x] **Task 4.7 table（mutate，子动作）**：同上模式（add/remove/list）。
+- [x] **Task 4.8 batch（mutate，原子性核心）**
   data = `{edits: [{cell, value}], applied: N}`；一次 open/一次 save（terminal cmd_batch
   :2562 语义）；dry-run 下全部 edits 校验但不落盘；部分失败 → 整体失败不写（原子性断言
   进测试）。
-- [ ] **Task 4.9 全量收尾**
+- [x] **Task 4.9 全量收尾**
   此时 42 个命令全部 Supported：SKILL.md 删除整个禁用清单段落（"Do not use …"）；
   capability_manifest 的 Partial 分支保留机制但数组清空；README×2 状态段与能力表重写；
   sync-skills。
 
 ## Milestone 5：v0.1.0 发布
 
-- [ ] **Task 5.1 版本对齐**：确定版本号（建议 0.1.0 保持）；Cargo.toml、根 package.json、
+- [x] **Task 5.1 版本对齐**：确定版本号（建议 0.1.0 保持）；Cargo.toml、根 package.json、
   packages/*/package.json × 8 全部一致，`node scripts/check-versions.js <VERSION>` 通过。
-- [ ] **Task 5.2 capability notes 英文化**：`"交互终端命令已迁移…"` 等面向 agent 的字符串
+- [x] **Task 5.2 capability notes 英文化**：`"交互终端命令已迁移…"` 等面向 agent 的字符串
   改英文（docs 注释保持中文），Partial 数组已空则仅处理残留字符串。
-- [ ] **Task 5.3 README 状态段更新**：移除 "workspace currently contains development
+- [x] **Task 5.3 README 状态段更新**：移除 "workspace currently contains development
   changes" 警告，动词表与 capabilities 对齐。
 - [ ] **Task 5.4 release.yml 演练**：push tag 前手动触发/act 演练 8 目标构建；每目标
   smoke：`xls --version` + `xls capabilities --json` + fixture（tables.md import→get）。
@@ -173,16 +173,16 @@ openclaw/Hermes 等智能体通过 SKILL.md 无禁用清单地安全使用全部
 - [ ] **Task 5.6 发布后验证矩阵**：8 平台中至少 darwin-arm64 + linux-x64 实机
   `npx @partme.ai/xls-cli capabilities --json`；`npx skills add easy-4-rust/xls-cli`
   走通；GitHub release 附 SHA256SUMS（release.yml 既定产物）。
-- [ ] **Task 5.7 仓库发布记录**：CHANGELOG.md 记录 0.1.0 能力面。
+- [x] **Task 5.7 仓库发布记录**：CHANGELOG.md 记录 0.1.0 能力面。
 
 ## Milestone 6：收尾
 
-- [ ] **Task 6.1 全量质量门**：`cargo test`（含 terminal.rs 46 个迁移回归）、
+- [x] **Task 6.1 全量质量门**：`cargo test`（含 terminal.rs 46 个迁移回归）、
   `cargo clippy --all-targets -- -D warnings`、`cargo fmt --check`。
-- [ ] **Task 6.2 Future Work 占位**：本计划尾节记录 MCP server（`xls mcp` 子命令，
+- [x] **Task 6.2 Future Work 占位**：本计划尾节记录 MCP server（`xls mcp` 子命令，
   JSON-RPC over stdio，复用 CommandExecutor——借鉴 OfficeCLI McpServer）、TUI/structured
   收敛、eval 公式覆盖表发布。
-- [ ] **Task 6.3 计划归档**：勾选完毕的本文档 commit，技术方案文档 §5 阶段 C/D 标记完成。
+- [x] **Task 6.3 计划归档**：勾选完毕的本文档 commit，技术方案文档 §5 阶段 C/D 标记完成。
 
 ---
 
@@ -237,3 +237,25 @@ openclaw/Hermes 等智能体通过 SKILL.md 无禁用清单地安全使用全部
   骨架与 skill 查询）
 - TUI 与 structured 命令面收敛（同一动词两种实现的长期统一）
 - eval 公式覆盖表随 release 发布（供 agent 判断可用函数）
+
+
+---
+
+## 执行结果（2026-08-14）
+
+- 43/44 命令 supported；唯一 partial 为 `open`（交互式 TUI，by design）。
+- 质量门全绿：`cargo fmt --check`、`cargo clippy --all-targets -- -D warnings`（0 错误）、
+  `cargo test`（116 单元 + 7 进程级协议 + TUI/terminal 回归）。
+- 版本对齐：`node scripts/check-versions.js 0.1.0` 通过。
+- 共享提取：`cli::predicate`（filter 谓词 DSL）、`cli::row_ops`（行快照/重写/复制/比较）、
+  `Aggregation`/`NameAction`/`TableAction`（serde+clap 共用枚举）。
+- 协议演进：DryRun 允许就地预览（mutation_target/validate_target），与 terminal guardrail
+  语义一致；嵌套子命令（name/table）的 `--output` 为 global。
+
+## 剩余外部步骤（需发布凭证，未在本会话执行）
+
+1. `git push` + 打 tag（触发 release.yml 构建 8 平台包并附 SHA256SUMS）。
+2. npm 发布顺序：先 8 个 `packages/*` 平台包，再发根 launcher 包
+   （`@partme.ai/xls-cli`）。
+3. 发布后验证：`npx @partme.ai/xls-cli capabilities --json`（至少 darwin-arm64 与
+   linux-x64）、`npx skills add easy-4-rust/xls-cli`。
