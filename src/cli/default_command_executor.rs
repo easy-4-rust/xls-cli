@@ -273,6 +273,7 @@ impl CommandExecutor for DefaultCommandExecutor {
                 formula,
                 at,
             } => eval(&input, &formula, at.as_deref(), context),
+            CommandRequest::Format { input, cell } => format_cell(&input, &cell, context),
             CommandRequest::Planned { command_name, .. } => Err(CommandError::new(
                 ErrorCode::UnsupportedCommand,
                 format!("当前版本尚不支持命令：{}", command_name.as_str()),
@@ -541,6 +542,37 @@ fn eval(
     }
     Ok(CommandResult::new(
         CommandName::Eval,
+        data,
+        is_dry_run(context),
+    ))
+}
+
+/// 查询单元格的数字格式类别与格式代码（GENERAL / DATE… / NUMBER…）。
+fn format_cell(
+    path: &Path,
+    cell: &str,
+    context: &ExecutionContext,
+) -> Result<CommandResult, CommandError> {
+    let workbook = open_workbook(path, context)?;
+    let at_ref = parse_cell_context(&workbook, cell)?;
+    let description = crate::cli::render::describe_number_format(
+        &workbook,
+        at_ref.sheet,
+        at_ref.row,
+        at_ref.col,
+    );
+    let sheet_name = &workbook.sheets[at_ref.sheet].name;
+    let data = json!({
+        "cell": cell,
+        "at": format!(
+            "{sheet_name}!{}{}",
+            easyexcel::model::addr::col_index_to_letters(at_ref.col),
+            at_ref.row + 1
+        ),
+        "format": description,
+    });
+    Ok(CommandResult::new(
+        CommandName::Format,
         data,
         is_dry_run(context),
     ))

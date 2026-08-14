@@ -160,6 +160,11 @@ pub enum CommandRequest {
         formula: String,
         at: Option<String>,
     },
+    /// 查询单元格的数字格式类别与格式代码。
+    Format {
+        input: PathBuf,
+        cell: String,
+    },
     /// 已进入协议但尚未迁入生产实现的命令。
     Planned {
         command_name: CommandName,
@@ -198,6 +203,7 @@ impl CommandRequest {
             Self::Grep { .. } => CommandName::Grep,
             Self::Profile { .. } => CommandName::Profile,
             Self::Eval { .. } => CommandName::Eval,
+            Self::Format { .. } => CommandName::Format,
             Self::Planned { command_name, .. } => *command_name,
         }
     }

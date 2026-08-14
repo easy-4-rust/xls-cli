@@ -75,6 +75,7 @@ impl CapabilityManifest {
             CommandName::Grep,
             CommandName::Profile,
             CommandName::Eval,
+            CommandName::Format,
         ];
         const TERMINAL_ONLY: &[CommandName] = &[
             CommandName::Open,
@@ -87,7 +88,6 @@ impl CapabilityManifest {
             CommandName::Join,
             CommandName::Pivot,
             CommandName::Diff,
-            CommandName::Format,
             CommandName::FormatSet,
             CommandName::ToNumber,
             CommandName::ToDate,

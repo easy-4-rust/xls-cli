@@ -334,6 +334,52 @@ fn eval_computes_scalars_and_dynamic_array_grids() {
 }
 
 #[test]
+fn format_describes_cell_number_format() {
+    let directory = tempfile::tempdir().expect("temp directory");
+    let markdown = directory.path().join("input.md");
+    let workbook = directory.path().join("book.xlsx");
+    fs::write(
+        &markdown,
+        "| name | amount |\n| --- | ---: |\n| Alice | 42 |\n",
+    )
+    .expect("write fixture");
+    let executor = DefaultCommandExecutor::new();
+    executor
+        .execute(
+            CommandRequest::Import {
+                input: markdown,
+                output: workbook.clone(),
+                markdown_options: None,
+            },
+            &ExecutionContext::new(),
+        )
+        .expect("import markdown");
+    let result = executor
+        .execute(
+            CommandRequest::Format {
+                input: workbook,
+                cell: "B2".to_owned(),
+            },
+            &ExecutionContext::new(),
+        )
+        .expect("format");
+    assert_eq!(result.command, CommandName::Format);
+    assert_eq!(result.data["cell"], "B2");
+    assert_eq!(result.data["format"], "GENERAL");
+
+    let missing = DefaultCommandExecutor::new()
+        .execute(
+            CommandRequest::Format {
+                input: directory.path().join("absent.xlsx"),
+                cell: "B2".to_owned(),
+            },
+            &ExecutionContext::new(),
+        )
+        .expect_err("缺文件应报错");
+    assert_eq!(missing.code, ErrorCode::FileNotFound);
+}
+
+#[test]
 fn query_engine_is_available_through_command_contract() {
     let directory = tempfile::tempdir().expect("temp directory");
     let markdown = directory.path().join("query.md");

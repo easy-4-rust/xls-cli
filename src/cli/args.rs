@@ -256,6 +256,11 @@ pub(crate) enum Commands {
         #[arg(long)]
         at: Option<String>,
     },
+    /// 查询单元格的数字格式（DATE/NUMBER/GENERAL 或格式代码）。
+    Format {
+        input: PathBuf,
+        cell: String,
+    },
     /// 输出机器可读能力清单。
     Capabilities,
     /// 输出指定命令的 JSON Schema。
