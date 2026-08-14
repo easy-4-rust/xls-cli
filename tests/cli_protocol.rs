@@ -220,7 +220,7 @@ fn group2_group3_verbs_return_structured_contracts() {
         let value: serde_json::Value = serde_json::from_slice(&output.stdout).expect("JSON");
         assert_eq!(
             value["command"],
-            serde_json::json!(arguments.first().unwrap().to_string())
+            serde_json::json!(arguments.first().copied().unwrap())
         );
     }
 
