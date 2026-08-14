@@ -261,6 +261,13 @@ pub(crate) enum Commands {
         input: PathBuf,
         cell: String,
     },
+    /// 按谓词过滤数据行（如 `amount>1000` 或 `name~ali`）。
+    Filter {
+        input: PathBuf,
+        predicate: String,
+        #[arg(long, short = 's')]
+        sheet: Option<String>,
+    },
     /// 输出机器可读能力清单。
     Capabilities,
     /// 输出指定命令的 JSON Schema。

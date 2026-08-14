@@ -206,6 +206,15 @@ pub(crate) fn into_request(command: Commands) -> Result<CommandRequest, String> 
         Commands::Recalc { input, output } => CommandRequest::Recalc { input, output },
         Commands::Capabilities => CommandRequest::Capabilities,
         Commands::Format { input, cell } => CommandRequest::Format { input, cell },
+        Commands::Filter {
+            input,
+            predicate,
+            sheet,
+        } => CommandRequest::Filter {
+            input,
+            predicate,
+            sheet,
+        },
         Commands::Eval {
             input,
             formula,

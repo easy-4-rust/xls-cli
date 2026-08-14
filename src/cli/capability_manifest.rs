@@ -76,13 +76,13 @@ impl CapabilityManifest {
             CommandName::Profile,
             CommandName::Eval,
             CommandName::Format,
+            CommandName::Filter,
         ];
         const TERMINAL_ONLY: &[CommandName] = &[
             CommandName::Open,
             CommandName::Copy,
             CommandName::Move,
             CommandName::Append,
-            CommandName::Filter,
             CommandName::Sort,
             CommandName::Dedup,
             CommandName::Join,

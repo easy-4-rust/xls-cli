@@ -17,6 +17,7 @@ mod easyexcel_components;
 mod execution_context;
 mod markdown_capability;
 mod output_format;
+mod predicate;
 mod query;
 mod render;
 mod request;

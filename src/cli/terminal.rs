@@ -16,6 +16,7 @@ use super::easyexcel_components as core;
 use super::easyexcel_components::formula::{CellRef, Engine};
 use super::easyexcel_components::model::{Cell, Workbook};
 use super::easyexcel_components::value::CellValue;
+use super::predicate::Predicate;
 use super::{render, stream};
 
 // ─── Top-level CLI ──────────────────────────────────────────────────────────
@@ -2887,117 +2888,7 @@ fn copy_row(src: &core::Sheet, dst: &mut core::Sheet, src_r: u32, dst_r: u32, co
     }
 }
 
-/// Comparison operator for `filter` predicates.
-#[derive(Clone, Copy)]
-enum PredOp {
-    Eq,
-    Ne,
-    Gt,
-    Ge,
-    Lt,
-    Le,
-    Contains,
-    IsNumber,
-    IsText,
-}
 
-/// A parsed `filter` predicate: `<col> <op> <rhs>`, or `<col>:number|text`.
-struct Predicate {
-    col: String,
-    op: PredOp,
-    rhs: String,
-}
-
-impl Predicate {
-    fn parse(s: &str) -> anyhow::Result<Predicate> {
-        // Type predicates: `<col>:number` / `<col>:text`.
-        if let Some((c, kind)) = s.split_once(':') {
-            match kind.trim().to_ascii_lowercase().as_str() {
-                "number" => {
-                    return Ok(Predicate {
-                        col: c.trim().to_string(),
-                        op: PredOp::IsNumber,
-                        rhs: String::new(),
-                    });
-                }
-                "text" => {
-                    return Ok(Predicate {
-                        col: c.trim().to_string(),
-                        op: PredOp::IsText,
-                        rhs: String::new(),
-                    });
-                }
-                _ => {}
-            }
-        }
-        // Comparison operators, longest symbols first.
-        for (sym, op) in [
-            (">=", PredOp::Ge),
-            ("<=", PredOp::Le),
-            ("!=", PredOp::Ne),
-            ("==", PredOp::Eq),
-            ("~", PredOp::Contains),
-            (">", PredOp::Gt),
-            ("<", PredOp::Lt),
-        ] {
-            if let Some(pos) = s.find(sym) {
-                let col = s[..pos].trim().to_string();
-                let rhs = s[pos + sym.len()..].trim().to_string();
-                if col.is_empty() {
-                    anyhow::bail!("predicate is missing a column: '{s}'");
-                }
-                return Ok(Predicate { col, op, rhs });
-            }
-        }
-        anyhow::bail!("could not parse predicate: '{s}'")
-    }
-
-    fn matches(&self, wb: &Workbook, sheet_idx: usize, row: u32, col: u32) -> bool {
-        use std::cmp::Ordering;
-        let v = wb.sheets[sheet_idx].value(row, col);
-        match self.op {
-            PredOp::IsNumber => matches!(v, CellValue::Number(_)),
-            PredOp::IsText => matches!(v, CellValue::Text(_)),
-            PredOp::Contains => wb
-                .display_cell(sheet_idx, row, col)
-                .to_lowercase()
-                .contains(&self.rhs.to_lowercase()),
-            _ => {
-                let numeric = match (&v, self.rhs.parse::<f64>()) {
-                    (CellValue::Number(x), Ok(y)) => Some((x, y)),
-                    _ => None,
-                };
-                match numeric {
-                    Some((x, y)) => {
-                        let o = x.partial_cmp(&y).unwrap_or(Ordering::Equal);
-                        match self.op {
-                            PredOp::Eq => o == Ordering::Equal,
-                            PredOp::Ne => o != Ordering::Equal,
-                            PredOp::Gt => o == Ordering::Greater,
-                            PredOp::Ge => o != Ordering::Less,
-                            PredOp::Lt => o == Ordering::Less,
-                            PredOp::Le => o != Ordering::Greater,
-                            _ => false,
-                        }
-                    }
-                    None => {
-                        let disp = wb.display_cell(sheet_idx, row, col);
-                        let (a, b) = (disp.as_str(), self.rhs.as_str());
-                        match self.op {
-                            PredOp::Eq => a == b,
-                            PredOp::Ne => a != b,
-                            PredOp::Gt => a > b,
-                            PredOp::Ge => a >= b,
-                            PredOp::Lt => a < b,
-                            PredOp::Le => a <= b,
-                            _ => false,
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
 

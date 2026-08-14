@@ -274,6 +274,11 @@ impl CommandExecutor for DefaultCommandExecutor {
                 at,
             } => eval(&input, &formula, at.as_deref(), context),
             CommandRequest::Format { input, cell } => format_cell(&input, &cell, context),
+            CommandRequest::Filter {
+                input,
+                predicate,
+                sheet,
+            } => filter(&input, &predicate, sheet.as_deref(), context),
             CommandRequest::Planned { command_name, .. } => Err(CommandError::new(
                 ErrorCode::UnsupportedCommand,
                 format!("当前版本尚不支持命令：{}", command_name.as_str()),
@@ -576,6 +581,55 @@ fn format_cell(
         data,
         is_dry_run(context),
     ))
+}
+
+/// 按谓词过滤数据行：表头 + 命中行以 JSON 行集返回（不改文件）。
+fn filter(
+    path: &Path,
+    predicate: &str,
+    sheet: Option<&str>,
+    context: &ExecutionContext,
+) -> Result<CommandResult, CommandError> {
+    let workbook = open_workbook(path, context)?;
+    let index = resolve_sheet_index(&workbook, sheet)?;
+    let (rows, columns) = workbook.sheets[index].dimensions();
+    let predicate = crate::cli::predicate::Predicate::parse(predicate).map_err(|error| {
+        CommandError::new(ErrorCode::InvalidArgument, format!("谓词解析失败：{error}"))
+    })?;
+    let column = resolve_column(&workbook, index, &predicate.col)?;
+
+    let headers = (0..columns)
+        .map(|column| {
+            let header = workbook.display_cell(index, 0, column);
+            if header.is_empty() {
+                easyexcel::model::addr::col_index_to_letters(column)
+            } else {
+                header
+            }
+        })
+        .collect::<Vec<_>>();
+    let mut matched = Vec::new();
+    for row in 1..rows {
+        if predicate.matches(&workbook, index, row, column) {
+            let line = (0..columns)
+                .map(|column| {
+                    let cell = workbook.sheets[index].value(row, column);
+                    cell_value_json(&cell)
+                })
+                .collect::<Vec<_>>();
+            matched.push(line);
+        }
+    }
+    let hit_count = matched.len();
+    let data = json!({
+        "predicate": predicate.col,
+        "sheet": workbook.sheets[index].name,
+        "columns": headers,
+        "rows": matched,
+    });
+    let mut result = CommandResult::new(CommandName::Filter, data, is_dry_run(context));
+    result.stats.insert("rows".to_owned(), hit_count as u64);
+    Ok(result)
 }
 
 fn info(path: &Path, context: &ExecutionContext) -> Result<CommandResult, CommandError> {

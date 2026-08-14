@@ -380,6 +380,61 @@ fn format_describes_cell_number_format() {
 }
 
 #[test]
+fn filter_returns_matching_rows_as_json() {
+    let directory = tempfile::tempdir().expect("temp directory");
+    let markdown = directory.path().join("input.md");
+    let workbook = directory.path().join("book.xlsx");
+    fs::write(
+        &markdown,
+        "| name | amount |\n| --- | ---: |\n| Alice | 42 |\n| Bob | 7 |\n| Carol | 99 |\n",
+    )
+    .expect("write fixture");
+    let executor = DefaultCommandExecutor::new();
+    executor
+        .execute(
+            CommandRequest::Import {
+                input: markdown,
+                output: workbook.clone(),
+                markdown_options: None,
+            },
+            &ExecutionContext::new(),
+        )
+        .expect("import markdown");
+    let result = executor
+        .execute(
+            CommandRequest::Filter {
+                input: workbook,
+                predicate: "amount>40".to_owned(),
+                sheet: None,
+            },
+            &ExecutionContext::new(),
+        )
+        .expect("filter");
+    assert_eq!(result.command, CommandName::Filter);
+    assert_eq!(
+        result.data["columns"],
+        serde_json::json!(["name", "amount"])
+    );
+    let rows = result.data["rows"].as_array().expect("rows");
+    assert_eq!(rows.len(), 2, "42 与 99 命中");
+    assert_eq!(rows[0][0], "Alice");
+    assert_eq!(rows[1][0], "Carol");
+    assert_eq!(result.stats["rows"], 2);
+
+    let bad = DefaultCommandExecutor::new()
+        .execute(
+            CommandRequest::Filter {
+                input: directory.path().join("book.xlsx"),
+                predicate: "not a predicate".to_owned(),
+                sheet: None,
+            },
+            &ExecutionContext::new(),
+        )
+        .expect_err("非法谓词应报错");
+    assert_eq!(bad.code, ErrorCode::InvalidArgument);
+}
+
+#[test]
 fn query_engine_is_available_through_command_contract() {
     let directory = tempfile::tempdir().expect("temp directory");
     let markdown = directory.path().join("query.md");

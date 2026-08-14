@@ -165,6 +165,12 @@ pub enum CommandRequest {
         input: PathBuf,
         cell: String,
     },
+    /// 按谓词过滤数据行（如 `amount>1000`），返回命中行集。
+    Filter {
+        input: PathBuf,
+        predicate: String,
+        sheet: Option<String>,
+    },
     /// 已进入协议但尚未迁入生产实现的命令。
     Planned {
         command_name: CommandName,
@@ -204,6 +210,7 @@ impl CommandRequest {
             Self::Profile { .. } => CommandName::Profile,
             Self::Eval { .. } => CommandName::Eval,
             Self::Format { .. } => CommandName::Format,
+            Self::Filter { .. } => CommandName::Filter,
             Self::Planned { command_name, .. } => *command_name,
         }
     }
