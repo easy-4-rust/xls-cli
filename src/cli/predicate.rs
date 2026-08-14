@@ -1,7 +1,6 @@
 //! `filter` 谓词 DSL：`<col> <op> <rhs>` 或 `<col>:number|text`。
 //!
 //! 自 terminal.rs 原样提取，供人类终端路径与结构化执行器共用。
-#![allow(clippy::min_ident_chars, reason = "数学比较的惯用短名（wb/x/y/a/b）继承自原 terminal 实现")]
 
 use anyhow::{Result, bail};
 
@@ -87,42 +86,42 @@ impl Predicate {
     }
 
     /// 判断某行某列是否满足谓词（数值比较优先，回退显示值字典序）。
-    pub(crate) fn matches(&self, wb: &Workbook, sheet_idx: usize, row: u32, col: u32) -> bool {
+    pub(crate) fn matches(&self, workbook: &Workbook, sheet_idx: usize, row: u32, col: u32) -> bool {
         use std::cmp::Ordering;
-        let v = wb.sheets[sheet_idx].value(row, col);
+        let cell = workbook.sheets[sheet_idx].value(row, col);
         match self.op {
-            PredOp::IsNumber => matches!(v, CellValue::Number(_)),
-            PredOp::IsText => matches!(v, CellValue::Text(_)),
-            PredOp::Contains => wb
+            PredOp::IsNumber => matches!(cell, CellValue::Number(_)),
+            PredOp::IsText => matches!(cell, CellValue::Text(_)),
+            PredOp::Contains => workbook
                 .display_cell(sheet_idx, row, col)
                 .to_lowercase()
                 .contains(&self.rhs.to_lowercase()),
             _ => {
-                let numeric = match (&v, self.rhs.parse::<f64>()) {
-                    (CellValue::Number(x), Ok(y)) => Some((x, y)),
+                let numeric = match (&cell, self.rhs.parse::<f64>()) {
+                    (CellValue::Number(left), Ok(right)) => Some((left, right)),
                     _ => None,
                 };
-                let Some((x, y)) = numeric else {
-                    let disp = wb.display_cell(sheet_idx, row, col);
-                    let (a, b) = (disp.as_str(), self.rhs.as_str());
+                let Some((left, right)) = numeric else {
+                    let display = workbook.display_cell(sheet_idx, row, col);
+                    let (actual, expected) = (display.as_str(), self.rhs.as_str());
                     return match self.op {
-                        PredOp::Eq => a == b,
-                        PredOp::Ne => a != b,
-                        PredOp::Gt => a > b,
-                        PredOp::Ge => a >= b,
-                        PredOp::Lt => a < b,
-                        PredOp::Le => a <= b,
+                        PredOp::Eq => actual == expected,
+                        PredOp::Ne => actual != expected,
+                        PredOp::Gt => actual > expected,
+                        PredOp::Ge => actual >= expected,
+                        PredOp::Lt => actual < expected,
+                        PredOp::Le => actual <= expected,
                         _ => false,
                     };
                 };
-                let o = x.partial_cmp(&y).unwrap_or(Ordering::Equal);
+                let order = left.partial_cmp(&right).unwrap_or(Ordering::Equal);
                 match self.op {
-                    PredOp::Eq => o == Ordering::Equal,
-                    PredOp::Ne => o != Ordering::Equal,
-                    PredOp::Gt => o == Ordering::Greater,
-                    PredOp::Ge => o != Ordering::Less,
-                    PredOp::Lt => o == Ordering::Less,
-                    PredOp::Le => o != Ordering::Greater,
+                    PredOp::Eq => order == Ordering::Equal,
+                    PredOp::Ne => order != Ordering::Equal,
+                    PredOp::Gt => order == Ordering::Greater,
+                    PredOp::Ge => order != Ordering::Less,
+                    PredOp::Lt => order == Ordering::Less,
+                    PredOp::Le => order != Ordering::Greater,
                     _ => false,
                 }
             }
