@@ -1166,7 +1166,8 @@ fn set_number_format(
             .style_at(row, column)
             .and_then(|index| workbook.styles.get(index).cloned())
             .unwrap_or_default();
-        style.number_format = code.to_owned();
+        style.number_format.clear();
+        style.number_format.push_str(code);
         style.number_format_id = None; // 自定义代码；丢弃内置格式 id
         let interned = workbook.styles.intern(style);
         workbook.sheets[selection.sheet_index].set_style(row, column, interned);
@@ -1210,7 +1211,8 @@ fn coerce_text_dates(
                 .style_at(row, column)
                 .and_then(|index| workbook.styles.get(index).cloned())
                 .unwrap_or_default();
-            style.number_format = format.to_owned();
+            style.number_format.clear();
+            style.number_format.push_str(format);
             style.number_format_id = None;
             let interned = workbook.styles.intern(style);
             workbook.sheets[selection.sheet_index].set_style(row, column, interned);
