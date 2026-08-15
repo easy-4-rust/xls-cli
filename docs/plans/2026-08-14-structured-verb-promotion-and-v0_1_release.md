@@ -267,3 +267,11 @@ openclaw/Hermes 等智能体通过 SKILL.md 无禁用清单地安全使用全部
 
 副产物修复：rustfmt 1.88 长属性折行、clippy 1.88 `&&str.to_string` —— CI 工具链
 与本地新工具链的差异，main ci 已绿。
+
+## 发布后收尾（2026-08-14，已验证）
+
+- `npm pkg fix` 已应用（repository URL 规范化为 `git+https://…git`，发布警告消除），
+  commit 9b45a35。
+- `npx skills add easy-4-rust/xls-cli` 实测通过：交互模式列出 48+ agent 目标；
+  非交互 `--agent openclaw -y` 完成安装，`skills/xls-cli/SKILL.md` 内容完整；
+  `-l` 列表模式正常。
