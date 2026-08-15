@@ -121,6 +121,13 @@ npx skills add easy-4-rust/xls-cli --skill xls-cli --yes
 npx skills add easy-4-rust/xls-cli --skill xls-cli --global --yes
 ```
 
+To target a specific agent non-interactively (verified against the Skills CLI), or to preview before installing:
+
+```sh
+npx skills add easy-4-rust/xls-cli --agent openclaw --yes
+npx skills add easy-4-rust/xls-cli --list
+```
+
 To give an agent the complete instructions without installing the Skill, generate an agent-ready prompt:
 
 ```sh

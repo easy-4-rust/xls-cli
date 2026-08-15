@@ -119,6 +119,13 @@ npx skills add easy-4-rust/xls-cli --skill xls-cli --yes
 npx skills add easy-4-rust/xls-cli --skill xls-cli --global --yes
 ```
 
+面向指定智能体的非交互安装（已对 Skills CLI 实测），或安装前先预览：
+
+```sh
+npx skills add easy-4-rust/xls-cli --agent openclaw --yes
+npx skills add easy-4-rust/xls-cli --list
+```
+
 如果不安装 Skill，而是希望直接得到一份可以交给智能体读取的完整提示词：
 
 ```sh

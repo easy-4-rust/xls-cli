@@ -9,7 +9,7 @@ Use the `xls` binary as a subprocess. Let EasyExcel perform spreadsheet parsing,
 
 ## Establish the runtime contract
 
-1. Run `command -v xls` and `xls --version`. If the binary is missing, stop and report that the package must be installed; do not install software unless the user asks.
+1. Run `command -v xls` and `xls --version`. If the binary is missing, stop and report that the package must be installed; do not install software unless the user asks. When the user asks how, suggest `npm install -g @partme.ai/xls-cli` (installs the native launcher for the current platform), or `npx @partme.ai/xls-cli <args>` for one-off use without installation.
 2. Run `xls capabilities --json` for every new runtime or task session.
 3. Select only a command whose capability status is `supported`.
 4. Run `xls schema --command NAME --json` before constructing an unfamiliar structured request.
